@@ -1,145 +1,191 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 380" role="img" aria-label="Technical diagram of Longines Conquest V.H.P. GMT optical Flash Setting sensor and crown">
+﻿<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 840 400" role="img" aria-label="Technical schematic of Longines Conquest V.H.P. GMT with 4 hands and optical photodiode hidden in the 1 of 12">
   <defs>
     <linearGradient id="bgGrad" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0%" stop-color="#f7f5f0"/>
-      <stop offset="100%" stop-color="#eeeae0"/>
+      <stop offset="100%" stop-color="#efebe2"/>
     </linearGradient>
-    <radialGradient id="dialGrad" cx="42%" cy="35%" r="65%">
-      <stop offset="0%" stop-color="#173055"/>
-      <stop offset="65%" stop-color="#0b1a30"/>
-      <stop offset="100%" stop-color="#061020"/>
+    <radialGradient id="dialGrad" cx="44%" cy="38%" r="64%">
+      <stop offset="0%" stop-color="#1a355d"/>
+      <stop offset="62%" stop-color="#0b1a30"/>
+      <stop offset="100%" stop-color="#060f1e"/>
     </radialGradient>
-    <linearGradient id="steelGrad" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#e7eaef"/>
-      <stop offset="35%" stop-color="#bcc3ce"/>
-      <stop offset="65%" stop-color="#f4f6f9"/>
-      <stop offset="100%" stop-color="#8d96a4"/>
+    <linearGradient id="steelCase" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#edf0f4"/>
+      <stop offset="30%" stop-color="#b9c0cc"/>
+      <stop offset="55%" stop-color="#f6f8fb"/>
+      <stop offset="80%" stop-color="#9ca4b2"/>
+      <stop offset="100%" stop-color="#d4d9e1"/>
     </linearGradient>
-    <linearGradient id="beamGrad" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#c5a467" stop-opacity="0.65"/>
-      <stop offset="100%" stop-color="#c5a467" stop-opacity="0.05"/>
+    <linearGradient id="bezelGrad" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0%" stop-color="#8b94a3"/>
+      <stop offset="35%" stop-color="#eef1f5"/>
+      <stop offset="65%" stop-color="#b4bcc9"/>
+      <stop offset="100%" stop-color="#f5f7fa"/>
+    </linearGradient>
+    <linearGradient id="lugGrad" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#9ca4b2"/>
+      <stop offset="28%" stop-color="#e9edf2"/>
+      <stop offset="50%" stop-color="#c4cbd6"/>
+      <stop offset="72%" stop-color="#eef1f5"/>
+      <stop offset="100%" stop-color="#8c95a3"/>
     </linearGradient>
   </defs>
 
-  <!-- Background plate -->
-  <rect width="820" height="380" rx="4" fill="url(#bgGrad)" stroke="#d9d3c7" stroke-width="1.5"/>
+  <!-- Card frame -->
+  <rect width="840" height="400" rx="3" fill="url(#bgGrad)" stroke="#d9d3c7" stroke-width="1.5"/>
 
-  <!-- Subtle architectural header rule -->
-  <text x="36" y="38" font-family="Georgia, 'Times New Roman', serif" font-size="18" fill="#0b1a30" letter-spacing="0.5">
+  <!-- Header -->
+  <text x="36" y="38" font-family="Georgia, 'Times New Roman', serif" font-size="18.5" fill="#0b1a30" letter-spacing="0.4">
     Conquest V.H.P. GMT — Optical Flash Setting Schematic
   </text>
-  <text x="36" y="56" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11.5" fill="#5a6270" letter-spacing="1.4">
-    WOP V2.4 · 30 MS OOK · 4 HANDS · PHOTODIODE HIDDEN IN THE "1" OF "12"
+  <text x="36" y="56" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" fill="#5a6270" letter-spacing="1.4">
+    WOP V2.4 · 30 MS OOK · 4 HANDS (H / M / S / 24H GMT) · SENSOR HIDDEN IN "1" OF "12"
   </text>
-  <line x1="36" y1="68" x2="784" y2="68" stroke="#c5a467" stroke-width="1"/>
+  <line x1="36" y1="68" x2="804" y2="68" stroke="#c5a467" stroke-width="1"/>
 
-  <!-- Watch assembly centered at (250, 222) -->
-  <g transform="translate(250, 222)">
-    <!-- Top & bottom lugs / bracelet hints -->
-    <path d="M-56,-116 L-44,-138 L44,-138 L56,-116 Z" fill="url(#steelGrad)" stroke="#7e8795" stroke-width="1"/>
-    <path d="M-56,116 L-44,138 L44,138 L56,116 Z" fill="url(#steelGrad)" stroke="#7e8795" stroke-width="1"/>
+  <!-- Watch assembly centered at (228, 232) -->
+  <g transform="translate(228, 232)">
+    <!-- Integrated curved lugs & bracelet end-links -->
+    <path d="M-66,-98 C-62,-124 -56,-138 -48,-144 L48,-144 C56,-138 62,-124 66,-98 Z" fill="url(#lugGrad)" stroke="#7c8594" stroke-width="1.1"/>
+    <path d="M-66,98 C-62,124 -56,138 -48,144 L48,144 C56,138 62,124 66,98 Z" fill="url(#lugGrad)" stroke="#7c8594" stroke-width="1.1"/>
+    <!-- Center bracelet link seams -->
+    <line x1="-22" y1="-144" x2="-22" y2="-112" stroke="#8992a0" stroke-width="0.9"/>
+    <line x1="22" y1="-144" x2="22" y2="-112" stroke="#8992a0" stroke-width="0.9"/>
+    <line x1="-22" y1="112" x2="-22" y2="144" stroke="#8992a0" stroke-width="0.9"/>
+    <line x1="22" y1="112" x2="22" y2="144" stroke="#8992a0" stroke-width="0.9"/>
 
     <!-- Crown guards & smart crown -->
-    <path d="M104,-30 L122,-22 L122,22 L104,30 Z" fill="url(#steelGrad)" stroke="#7e8795" stroke-width="1"/>
-    <rect x="118" y="-15" width="14" height="30" rx="2" fill="url(#steelGrad)" stroke="#6c7583" stroke-width="1.2"/>
-    <line x1="122" y1="-12" x2="122" y2="12" stroke="#7c8593" stroke-width="1"/>
-    <line x1="126" y1="-12" x2="126" y2="12" stroke="#7c8593" stroke-width="1"/>
-    <line x1="130" y1="-12" x2="130" y2="12" stroke="#7c8593" stroke-width="1"/>
+    <path d="M104,-34 C118,-28 122,-22 123,-14 L123,14 C122,22 118,28 104,34 Z" fill="url(#steelCase)" stroke="#7b8492" stroke-width="1.1"/>
+    <rect x="119" y="-15" width="15" height="30" rx="2" fill="url(#steelCase)" stroke="#68717f" stroke-width="1.2"/>
+    <line x1="123" y1="-12" x2="123" y2="12" stroke="#7c8593" stroke-width="1"/>
+    <line x1="127" y1="-12" x2="127" y2="12" stroke="#7c8593" stroke-width="1"/>
+    <line x1="131" y1="-12" x2="131" y2="12" stroke="#7c8593" stroke-width="1"/>
 
-    <!-- Case & bezel -->
-    <circle cx="0" cy="0" r="114" fill="url(#steelGrad)" stroke="#7b8492" stroke-width="1.5"/>
-    <circle cx="0" cy="0" r="102" fill="none" stroke="#8f98a6" stroke-width="1"/>
+    <!-- Outer steel case & polished bezel -->
+    <circle cx="0" cy="0" r="115" fill="url(#steelCase)" stroke="#7a8391" stroke-width="1.4"/>
+    <circle cx="0" cy="0" r="105" fill="url(#bezelGrad)" stroke="#8b94a3" stroke-width="1"/>
 
-    <!-- Dial -->
-    <circle cx="0" cy="0" r="96" fill="url(#dialGrad)" stroke="#1e3557" stroke-width="1.5"/>
+    <!-- Deep navy dial -->
+    <circle cx="0" cy="0" r="97" fill="url(#dialGrad)" stroke="#1b3050" stroke-width="1.4"/>
 
-    <!-- Inner 24h GMT chapter ring -->
-    <circle cx="0" cy="0" r="88" fill="none" stroke="#c5a467" stroke-opacity="0.35" stroke-width="0.8"/>
-
-    <!-- Hour baton indices (1,2,4,5,7,8,9,10,11) -->
-    <g stroke="#e6e9ef" stroke-linecap="butt">
-      <line x1="41" y1="-71" x2="36" y2="-62" stroke-width="3.2"/>
-      <line x1="71" y1="-41" x2="62" y2="-36" stroke-width="3.2"/>
-      <line x1="71" y1="41" x2="62" y2="36" stroke-width="3.2"/>
-      <line x1="41" y1="71" x2="36" y2="62" stroke-width="3.2"/>
-      <line x1="-41" y1="71" x2="-36" y2="62" stroke-width="3.2"/>
-      <line x1="-71" y1="41" x2="-62" y2="36" stroke-width="3.2"/>
-      <line x1="-82" y1="0" x2="-70" y2="0" stroke-width="3.6"/>
-      <line x1="-71" y1="-41" x2="-62" y2="-36" stroke-width="3.2"/>
-      <line x1="-41" y1="-71" x2="-36" y2="-62" stroke-width="3.2"/>
+    <!-- Outer 24-hour GMT chapter ring -->
+    <circle cx="0" cy="0" r="91" fill="none" stroke="#9ab0cf" stroke-opacity="0.28" stroke-width="0.7"/>
+    <g font-family="-apple-system, Helvetica, Arial, sans-serif" font-size="6.4" font-weight="600" fill="#a9bcd8" text-anchor="middle">
+      <text x="0" y="-85">24</text>
+      <text x="43" y="-73">2</text>
+      <text x="74" y="-42">4</text>
+      <text x="86" y="2">6</text>
+      <text x="74" y="45">8</text>
+      <text x="43" y="76">10</text>
+      <text x="0" y="89">12</text>
+      <text x="-43" y="76">14</text>
+      <text x="-74" y="45">16</text>
+      <text x="-85" y="2">18</text>
+      <text x="-74" y="-42">20</text>
+      <text x="-43" y="-73">22</text>
     </g>
 
-    <!-- Oversized 12 & 6 numerals (Conquest V.H.P. GMT signature) -->
-    <text x="-7" y="-58" text-anchor="middle" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="25" font-weight="700" fill="#eef1f6">1</text>
-    <text x="8" y="-58" text-anchor="middle" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="25" font-weight="700" fill="#eef1f6">2</text>
-    <text x="0" y="75" text-anchor="middle" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="25" font-weight="700" fill="#eef1f6">6</text>
+    <!-- Applied hour baton indices (1,2,4,5,7,8,9,10,11) -->
+    <g stroke="#edf1f7" stroke-linecap="butt">
+      <line x1="39" y1="-67" x2="34" y2="-58" stroke-width="3.2"/>
+      <line x1="67" y1="-39" x2="58" y2="-34" stroke-width="3.2"/>
+      <line x1="67" y1="39" x2="58" y2="34" stroke-width="3.2"/>
+      <line x1="39" y1="67" x2="34" y2="58" stroke-width="3.2"/>
+      <line x1="-39" y1="67" x2="-34" y2="58" stroke-width="3.2"/>
+      <line x1="-67" y1="39" x2="-58" y2="34" stroke-width="3.2"/>
+      <line x1="-78" y1="0" x2="-66" y2="0" stroke-width="3.6"/>
+      <line x1="-67" y1="-39" x2="-58" y2="-34" stroke-width="3.2"/>
+      <line x1="-39" y1="-67" x2="-34" y2="-58" stroke-width="3.2"/>
+    </g>
 
-    <!-- Optical photodiode aperture hidden inside the "1" of "12" -->
-    <circle cx="-6.5" cy="-67" r="3.4" fill="#040911" stroke="#c5a467" stroke-width="1.4"/>
-    <circle cx="-6.5" cy="-67" r="9.5" fill="none" stroke="#c5a467" stroke-width="1" stroke-dasharray="2.5 2"/>
+    <!-- Signature oversized "12" with optical photodiode aperture hidden inside the vertical stem of "1" -->
+    <g>
+      <!-- Drawn geometric "1" so the photodiode sits cleanly inside its stem -->
+      <path d="M-12,-73 L-6,-76 L-6,-54 L-11,-54 L-11,-70 L-14,-68 Z" fill="#eef1f6"/>
+      <!-- Tiny dark photodiode aperture recessed inside the "1" -->
+      <rect x="-9.8" y="-68.5" width="2.6" height="5.2" rx="0.8" fill="#040911" stroke="#c5a467" stroke-width="0.9"/>
+      <!-- Subtle target halo around the "1" -->
+      <circle cx="-8.5" cy="-65.8" r="8.5" fill="none" stroke="#c5a467" stroke-width="1.1" stroke-dasharray="2.5 2"/>
+      <!-- Clean "2" next to "1" -->
+      <text x="6.5" y="-54" text-anchor="middle" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="25" font-weight="700" fill="#eef1f6">2</text>
+    </g>
+
+    <!-- Oversized "6" -->
+    <text x="0" y="74" text-anchor="middle" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="24" font-weight="700" fill="#eef1f6">6</text>
 
     <!-- Date window at 3 o'clock -->
-    <rect x="60" y="-9" width="20" height="18" rx="1.5" fill="#f8f7f3" stroke="#9aa3b0" stroke-width="1"/>
-    <text x="70" y="4" text-anchor="middle" font-family="ui-monospace, Consolas, monospace" font-size="11" font-weight="700" fill="#0b1a30">25</text>
+    <rect x="57" y="-9" width="20" height="18" rx="1.5" fill="#f8f7f3" stroke="#9aa3b0" stroke-width="1"/>
+    <text x="67" y="4" text-anchor="middle" font-family="ui-monospace, Consolas, monospace" font-size="11" font-weight="700" fill="#0b1a30">25</text>
 
-    <!-- Dial text -->
+    <!-- Dial inscriptions -->
     <text x="0" y="-26" text-anchor="middle" font-family="Georgia, serif" font-size="9.5" fill="#d5dce7" letter-spacing="2.2">CONQUEST</text>
     <text x="0" y="34" text-anchor="middle" font-family="-apple-system, Helvetica, Arial, sans-serif" font-size="8.5" font-weight="600" fill="#c5a467" letter-spacing="1.6">V.H.P. GMT</text>
-    <text x="0" y="46" text-anchor="middle" font-family="-apple-system, Helvetica, Arial, sans-serif" font-size="6.8" fill="#8b9ab2" letter-spacing="1.2">FLASH SETTING</text>
+    <text x="0" y="45" text-anchor="middle" font-family="-apple-system, Helvetica, Arial, sans-serif" font-size="6.4" fill="#8b9ab2" letter-spacing="1.2">FLASH SETTING</text>
 
-    <!-- 4 central hands: Hour, Minute, Seconds, and 24h GMT hand -->
-    <!-- 1. 24h GMT hand (pointing toward 8 o'clock with hollow red arrow tip) -->
-    <line x1="0" y1="0" x2="-52" y2="30" stroke="#c93b3b" stroke-width="2"/>
-    <polygon points="-64,37 -48,23 -53,35" fill="#0b1a30" stroke="#d94646" stroke-width="1.8"/>
-    <!-- 2. Hour hand -->
-    <line x1="0" y1="0" x2="-38" y2="-22" stroke="#eef1f6" stroke-width="4.6" stroke-linecap="round"/>
-    <!-- 3. Minute hand -->
-    <line x1="0" y1="0" x2="54" y2="-33" stroke="#eef1f6" stroke-width="3.2" stroke-linecap="round"/>
-    <!-- 4. Seconds hand (with counterweight + red tip) -->
-    <line x1="-18" y1="-10" x2="68" y2="38" stroke="#e2e8f0" stroke-width="1.1"/>
-    <line x1="56" y1="31" x2="68" y2="38" stroke="#d94646" stroke-width="1.6"/>
-    <!-- Center pinion -->
-    <circle cx="0" cy="0" r="4.5" fill="#e6e9ef" stroke="#0b1a30" stroke-width="1.2"/>
+    <!-- === ALL 4 CENTRAL HANDS === -->
+    <!-- Hand 1: 24h GMT hand (rotated cleanly to 235° -> ~7:50 / 16h on 24h ring, symmetric hollow red arrow) -->
+    <g transform="rotate(235)">
+      <line x1="0" y1="0" x2="0" y2="-66" stroke="#d43f3f" stroke-width="1.9"/>
+      <polygon points="0,-78 -5.5,-63 5.5,-63" fill="#0b1a30" stroke="#e04848" stroke-width="1.8" stroke-linejoin="miter"/>
+    </g>
 
-    <!-- Light beam cone entering the "1" of "12" sensor -->
-    <polygon points="-20,-134 7,-134 -2,-70 -11,-70" fill="url(#beamGrad)"/>
-    <circle cx="-6.5" cy="-134" r="4" fill="#c5a467"/>
+    <!-- Hand 2: Hour hand (10:10 -> 305°, classic sword/baton with lume strip) -->
+    <g transform="rotate(305)">
+      <polygon points="-3.4,10 -2.6,-46 0,-52 2.6,-46 3.4,10" fill="#eef1f6" stroke="#94a3b8" stroke-width="0.5"/>
+      <line x1="0" y1="-12" x2="0" y2="-42" stroke="#ffffff" stroke-width="1.6"/>
+    </g>
+
+    <!-- Hand 3: Minute hand (10:10 -> 60°, longer baton with lume strip) -->
+    <g transform="rotate(60)">
+      <polygon points="-2.6,12 -1.9,-68 0,-75 1.9,-68 2.6,12" fill="#eef1f6" stroke="#94a3b8" stroke-width="0.5"/>
+      <line x1="0" y1="-14" x2="0" y2="-63" stroke="#ffffff" stroke-width="1.3"/>
+    </g>
+
+    <!-- Hand 4: Central Seconds hand (rotated to 124° -> ~21s, slender needle with counterweight & red tip) -->
+    <g transform="rotate(124)">
+      <line x1="0" y1="22" x2="0" y2="-79" stroke="#e6eaf0" stroke-width="1.15"/>
+      <line x1="0" y1="-64" x2="0" y2="-79" stroke="#e04848" stroke-width="1.7"/>
+      <circle cx="0" cy="14" r="2.2" fill="#e6eaf0"/>
+    </g>
+
+    <!-- Center pinion cap -->
+    <circle cx="0" cy="0" r="4.6" fill="#edf0f5" stroke="#0b1a30" stroke-width="1.2"/>
+    <circle cx="0" cy="0" r="1.8" fill="#8d96a4"/>
   </g>
 
-  <!-- Callout 1: Optical Sensor hidden inside "1" of "12" -->
+  <!-- Callout 1: Photodiode hidden in "1" of "12" (routes UP & RIGHT cleanly above "12", never crossing "2") -->
   <g>
-    <polyline points="253,155 390,114 432,114" fill="none" stroke="#9a7b3e" stroke-width="1.2"/>
-    <circle cx="253" cy="155" r="3" fill="#9a7b3e"/>
-    <text x="442" y="109" font-family="Georgia, serif" font-size="14" fill="#0b1a30">1. Optical Sensor (hidden in the "1" of "12")</text>
-    <text x="442" y="127" font-family="-apple-system, Helvetica, Arial, sans-serif" font-size="12" fill="#4b5563">
-      Aim the phone's rear LED flashlight (default mode) 2–5 cm
+    <polyline points="219.5,157.5 219.5,104 420,104" fill="none" stroke="#9a7b3e" stroke-width="1.3"/>
+    <circle cx="219.5" cy="157.5" r="2.8" fill="#9a7b3e"/>
+    <text x="430" y="109" font-family="Georgia, serif" font-size="14" fill="#0b1a30">1. Optical Sensor — hidden in the "1" of "12"</text>
+    <text x="430" y="127" font-family="-apple-system, Helvetica, Arial, sans-serif" font-size="12" fill="#4b5563">
+      Aim the phone's rear LED flashlight (default mode) 2–5 cm directly
     </text>
-    <text x="442" y="143" font-family="-apple-system, Helvetica, Arial, sans-serif" font-size="12" fill="#4b5563">
-      above the "1" of "12" — or place dial against a flashing screen.
+    <text x="430" y="143" font-family="-apple-system, Helvetica, Arial, sans-serif" font-size="12" fill="#4b5563">
+      above the "1" digit — or hold the dial against a flashing screen.
     </text>
   </g>
 
   <!-- Callout 2: Smart Crown -->
   <g>
-    <polyline points="384,222 432,222" fill="none" stroke="#0b1a30" stroke-width="1.2"/>
-    <circle cx="384" cy="222" r="3" fill="#0b1a30"/>
-    <text x="442" y="216" font-family="Georgia, serif" font-size="14" fill="#0b1a30">2. Enter Flash Setting Mode</text>
-    <text x="442" y="234" font-family="-apple-system, Helvetica, Arial, sans-serif" font-size="12" fill="#4b5563">
+    <polyline points="365,232 420,232" fill="none" stroke="#0b1a30" stroke-width="1.25"/>
+    <circle cx="365" cy="232" r="2.8" fill="#0b1a30"/>
+    <text x="430" y="218" font-family="Georgia, serif" font-size="14" fill="#0b1a30">2. Enter Flash Setting Mode</text>
+    <text x="430" y="236" font-family="-apple-system, Helvetica, Arial, sans-serif" font-size="12" fill="#4b5563">
       Press the crown briefly, then press &amp; hold ~2 seconds until the
     </text>
-    <text x="442" y="250" font-family="-apple-system, Helvetica, Arial, sans-serif" font-size="12" fill="#4b5563">
-      hands move to reception position.
+    <text x="430" y="252" font-family="-apple-system, Helvetica, Arial, sans-serif" font-size="12" fill="#4b5563">
+      4 hands (Hour, Minute, Seconds, 24h GMT) move to reception position.
     </text>
   </g>
 
   <!-- Callout 3: Optical Pulse Frame -->
-  <g transform="translate(442, 286)">
+  <g transform="translate(430, 294)">
     <text x="0" y="0" font-family="Georgia, serif" font-size="14" fill="#0b1a30">3. WOP v2.4 Optical Signal (~2.2–3.5 s)</text>
-    <rect x="0" y="12" width="334" height="44" rx="2" fill="#ffffff" stroke="#d9d3c7" stroke-width="1"/>
-    <!-- Clean square-wave sample of ProtHeader 11101010 + data -->
-    <path d="M12,46 L22,46 L22,22 L64,22 L64,46 L78,46 L78,22 L92,22 L92,46 L106,46 L106,22 L120,22 L120,46 L162,46 L162,22 L176,22 L176,46 L204,46 L204,22 L232,22 L232,46 L246,46 L246,22 L260,22 L260,46 L322,46"
+    <rect x="0" y="12" width="366" height="44" rx="2" fill="#ffffff" stroke="#d9d3c7" stroke-width="1"/>
+    <path d="M14,46 L26,46 L26,22 L70,22 L70,46 L86,46 L86,22 L102,22 L102,46 L118,46 L118,22 L134,22 L134,46 L178,46 L178,22 L194,22 L194,46 L224,46 L224,22 L254,22 L254,46 L270,46 L270,22 L286,22 L286,46 L352,46"
           fill="none" stroke="#0b1a30" stroke-width="1.8"/>
-    <text x="12" y="70" font-family="ui-monospace, Consolas, monospace" font-size="10.5" fill="#6b7280">
+    <text x="14" y="72" font-family="ui-monospace, Consolas, monospace" font-size="10.5" fill="#6b7280">
       Header 11101010 · T1/T2 TZ + UTC + Date · DST · CRC-8 (0x107)
     </text>
   </g>
