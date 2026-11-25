@@ -356,7 +356,20 @@ body {
   color: var(--navy);
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
+}
+
+.default-tag {
+  margin-left: auto;
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  padding: 2px 7px;
+  border-radius: 2px;
+  color: #ffffff;
+  background: var(--navy);
 }
 
 .source-hint {

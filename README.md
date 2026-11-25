@@ -2,6 +2,8 @@
 
 Web-based optical flash time & date transmitter designed as a modern replacement for the legacy Flash Setting mobile application.
 
+![Longines Conquest V.H.P. GMT Optical Flash Setting Diagram](./assets/conquest-vhp-gmt-diagram.svg)
+
 > **Compatibility Notice / Informacja o kompatybilności**
 >
 > **EN:** Currently this application supports **Longines Conquest V.H.P. GMT** (Flash Setting) only. It is unknown whether it will work with other watches.
@@ -14,13 +16,13 @@ Web-based optical flash time & date transmitter designed as a modern replacement
 
 ## Features / Funkcje
 
+- **Phone Rear LED Flashlight (Default / Domyślne)** — primary transmission mode matching the original app via WebRTC `MediaTrackConstraints` (`torch`) on Android Chrome / Edge / Samsung Internet, with optional camera alignment preview and rising-edge latency compensation.
+- **Screen / Monitor Flash (Fallback for desktop PCs, laptops & iOS Safari)** — full-screen pure black/white (`#000000` / `#FFFFFF`) optical flashing mode for desktop monitors, laptops, and browsers without rear LED torch API access.
 - **Bilingual UI (English / Polski)** with instant language toggle.
 - **Home Time (T1)** and **Travel Time (T2)** dual timezone support.
 - **Automatic DST calculation** using the browser's IANA timezone database (`Intl.DateTimeFormat`), generating exact yearly Summer/Winter transition events.
-- **Rear LED Flashlight (Android Chrome / Edge / Samsung Internet)** via WebRTC `MediaTrackConstraints` (`torch`), with optional camera alignment preview and rising-edge latency compensation.
-- **Screen / Monitor Flash fallback (iOS Safari, desktop PC monitors & laptops)** — full-screen pure white/black (`#FFFFFF` / `#000000`) optical flashing mode for devices where rear LED torch control is unavailable.
 - **Sub-second UTC synchronization** — aligns the end of the stuffed frame to the next whole UTC second boundary.
-- **Calibration & Protocol Inspector** — adjustable bit period (`30 ms` default), rising-edge turn-on offset, custom UTC override, and live binary/waveform visualization.
+- **Hidden Calibration & Protocol Inspector** — collapsed by default; includes adjustable bit period (`30 ms` default), rising-edge turn-on offset, custom UTC override, and live binary/waveform visualization.
 
 ---
 

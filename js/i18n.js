@@ -8,7 +8,8 @@ export const TRANSLATIONS = {
     utcClockLabel: 'Device UTC',
     lightSourceTitle: 'Light Source',
     sourceTorch: 'Rear LED Flashlight',
-    sourceTorchHint: 'Recommended on Android (Chrome / Edge / Samsung Internet)',
+    sourceTorchBadge: 'Default',
+    sourceTorchHint: 'Primary mode — recommended on Android (Chrome / Edge / Samsung Internet)',
     sourceScreen: 'Screen / Monitor Flash',
     sourceScreenHint: 'Works on iOS Safari, desktop monitors & laptops (pure black/white)',
     torchStatusDesktop:
@@ -88,8 +89,9 @@ export const TRANSLATIONS = {
       'Na razie aplikacja wspiera wyłącznie zegarek <strong>Longines Conquest V.H.P. GMT</strong> (Flash Setting) i nie wiadomo, czy będzie działać z innymi zegarkami.',
     utcClockLabel: 'Czas UTC urządzenia',
     lightSourceTitle: 'Źródło światła',
-    sourceTorch: 'Latarka LED (tylna)',
-    sourceTorchHint: 'Zalecane na Androidzie (Chrome / Edge / Samsung Internet)',
+    sourceTorch: 'Latarka LED telefonu (tylna)',
+    sourceTorchBadge: 'Domyślne',
+    sourceTorchHint: 'Tryb główny — zalecane na Androidzie (Chrome / Edge / Samsung Internet)',
     sourceScreen: 'Błysk ekranu / monitora',
     sourceScreenHint: 'Działa na iOS Safari, monitorach PC i laptopach (miganie biało-czarne)',
     torchStatusDesktop:
