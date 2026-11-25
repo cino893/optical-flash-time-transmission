@@ -29,7 +29,7 @@
     Conquest V.H.P. GMT — Optical Flash Setting Schematic
   </text>
   <text x="36" y="56" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11.5" fill="#5a6270" letter-spacing="1.4">
-    WOP V2.4 · 30 MS OOK · 12 O'CLOCK PHOTODIODE RECEPTION
+    WOP V2.4 · 30 MS OOK · 4 HANDS · PHOTODIODE HIDDEN IN THE "1" OF "12"
   </text>
   <line x1="36" y1="68" x2="784" y2="68" stroke="#c5a467" stroke-width="1"/>
 
@@ -69,13 +69,14 @@
       <line x1="-41" y1="-71" x2="-36" y2="-62" stroke-width="3.2"/>
     </g>
 
-    <!-- Oversized 12 & 6 numerals (Conquest V.H.P. signature) -->
-    <text x="0" y="-58" text-anchor="middle" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="24" font-weight="700" fill="#eef1f6">12</text>
-    <text x="0" y="75" text-anchor="middle" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="24" font-weight="700" fill="#eef1f6">6</text>
+    <!-- Oversized 12 & 6 numerals (Conquest V.H.P. GMT signature) -->
+    <text x="-7" y="-58" text-anchor="middle" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="25" font-weight="700" fill="#eef1f6">1</text>
+    <text x="8" y="-58" text-anchor="middle" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="25" font-weight="700" fill="#eef1f6">2</text>
+    <text x="0" y="75" text-anchor="middle" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="25" font-weight="700" fill="#eef1f6">6</text>
 
-    <!-- Optical photodiode aperture at 12 o'clock -->
-    <circle cx="0" cy="-83" r="5" fill="#040911" stroke="#c5a467" stroke-width="1.6"/>
-    <circle cx="0" cy="-83" r="10" fill="none" stroke="#c5a467" stroke-width="1" stroke-dasharray="2.5 2"/>
+    <!-- Optical photodiode aperture hidden inside the "1" of "12" -->
+    <circle cx="-6.5" cy="-67" r="3.4" fill="#040911" stroke="#c5a467" stroke-width="1.4"/>
+    <circle cx="-6.5" cy="-67" r="9.5" fill="none" stroke="#c5a467" stroke-width="1" stroke-dasharray="2.5 2"/>
 
     <!-- Date window at 3 o'clock -->
     <rect x="60" y="-9" width="20" height="18" rx="1.5" fill="#f8f7f3" stroke="#9aa3b0" stroke-width="1"/>
@@ -86,34 +87,35 @@
     <text x="0" y="34" text-anchor="middle" font-family="-apple-system, Helvetica, Arial, sans-serif" font-size="8.5" font-weight="600" fill="#c5a467" letter-spacing="1.6">V.H.P. GMT</text>
     <text x="0" y="46" text-anchor="middle" font-family="-apple-system, Helvetica, Arial, sans-serif" font-size="6.8" fill="#8b9ab2" letter-spacing="1.2">FLASH SETTING</text>
 
-    <!-- Hands (10:10 classic horological pose + red-tipped GMT hand) -->
-    <!-- GMT hand pointing toward 7 o'clock -->
-    <line x1="0" y1="0" x2="-34" y2="54" stroke="#b93838" stroke-width="1.8"/>
-    <polygon points="-38,60 -30,52 -37,48" fill="#c73e3e"/>
-    <!-- Hour hand -->
-    <line x1="0" y1="0" x2="-40" y2="-23" stroke="#eef1f6" stroke-width="4.5" stroke-linecap="round"/>
-    <!-- Minute hand -->
+    <!-- 4 central hands: Hour, Minute, Seconds, and 24h GMT hand -->
+    <!-- 1. 24h GMT hand (pointing toward 8 o'clock with hollow red arrow tip) -->
+    <line x1="0" y1="0" x2="-52" y2="30" stroke="#c93b3b" stroke-width="2"/>
+    <polygon points="-64,37 -48,23 -53,35" fill="#0b1a30" stroke="#d94646" stroke-width="1.8"/>
+    <!-- 2. Hour hand -->
+    <line x1="0" y1="0" x2="-38" y2="-22" stroke="#eef1f6" stroke-width="4.6" stroke-linecap="round"/>
+    <!-- 3. Minute hand -->
     <line x1="0" y1="0" x2="54" y2="-33" stroke="#eef1f6" stroke-width="3.2" stroke-linecap="round"/>
-    <!-- Seconds hand -->
-    <line x1="-14" y1="8" x2="58" y2="-34" stroke="#c5a467" stroke-width="1" opacity="0.9"/>
+    <!-- 4. Seconds hand (with counterweight + red tip) -->
+    <line x1="-18" y1="-10" x2="68" y2="38" stroke="#e2e8f0" stroke-width="1.1"/>
+    <line x1="56" y1="31" x2="68" y2="38" stroke="#d94646" stroke-width="1.6"/>
     <!-- Center pinion -->
     <circle cx="0" cy="0" r="4.5" fill="#e6e9ef" stroke="#0b1a30" stroke-width="1.2"/>
 
-    <!-- Light beam cone entering 12 o'clock sensor -->
-    <polygon points="-14,-134 14,-134 5,-86 -5,-86" fill="url(#beamGrad)"/>
-    <circle cx="0" cy="-134" r="4" fill="#c5a467"/>
+    <!-- Light beam cone entering the "1" of "12" sensor -->
+    <polygon points="-20,-134 7,-134 -2,-70 -11,-70" fill="url(#beamGrad)"/>
+    <circle cx="-6.5" cy="-134" r="4" fill="#c5a467"/>
   </g>
 
-  <!-- Callout 1: Optical Sensor at 12 o'clock -->
+  <!-- Callout 1: Optical Sensor hidden inside "1" of "12" -->
   <g>
-    <polyline points="262,139 390,114 432,114" fill="none" stroke="#9a7b3e" stroke-width="1.2"/>
-    <circle cx="262" cy="139" r="3" fill="#9a7b3e"/>
-    <text x="442" y="109" font-family="Georgia, serif" font-size="14" fill="#0b1a30">1. Optical Sensor (12 o'clock)</text>
+    <polyline points="253,155 390,114 432,114" fill="none" stroke="#9a7b3e" stroke-width="1.2"/>
+    <circle cx="253" cy="155" r="3" fill="#9a7b3e"/>
+    <text x="442" y="109" font-family="Georgia, serif" font-size="14" fill="#0b1a30">1. Optical Sensor (hidden in the "1" of "12")</text>
     <text x="442" y="127" font-family="-apple-system, Helvetica, Arial, sans-serif" font-size="12" fill="#4b5563">
       Aim the phone's rear LED flashlight (default mode) 2–5 cm
     </text>
     <text x="442" y="143" font-family="-apple-system, Helvetica, Arial, sans-serif" font-size="12" fill="#4b5563">
-      above the 12 o'clock aperture — or place dial against a flashing screen.
+      above the "1" of "12" — or place dial against a flashing screen.
     </text>
   </g>
 

@@ -26,7 +26,7 @@ export const TRANSLATIONS = {
     btnTestBlink: 'Test Blink',
     btnReleaseCamera: 'Release Camera',
     togglePreview: 'Show camera alignment preview',
-    previewHint: 'Aim the rear LED (next to the camera lens) at the 12 o\'clock index on the watch dial.',
+    previewHint: 'Aim the rear LED (next to the camera lens) at the sensor hidden inside the "1" of "12" on the watch dial.',
     homeTitle: 'Home Time (T1)',
     travelTitle: 'Travel Time (T2)',
     tzSearchPlaceholder: 'Search timezone (e.g. Warsaw, New York, Tokyo)...',
@@ -52,7 +52,7 @@ export const TRANSLATIONS = {
     step2:
       'Choose your <strong>Home (T1)</strong> or <strong>Travel (T2)</strong> timezone. UTC time, date, standard offset, and yearly DST dates are encoded automatically.',
     step3:
-      '<strong>Android LED:</strong> Hold the phone\'s rear LED flashlight 2–5 cm directly above the 12 o\'clock aperture on the dial.<br><strong>iOS / Phone Screen / Monitor:</strong> Set screen brightness to 100%, dim room lighting, and hold the watch dial right up to the white/black flashing area.',
+      '<strong>Android LED:</strong> Hold the phone\'s rear LED flashlight 2–5 cm directly above the optical sensor hidden inside the "1" of "12" on the dial.<br><strong>iOS / Phone Screen / Monitor:</strong> Set screen brightness to 100%, dim room lighting, and hold the watch dial right up to the white/black flashing area.',
     step4:
       'Tap <strong>Transmit</strong> and keep the watch steady for ~2–4 seconds until the hands move to the new time.',
     advancedTitle: 'Calibration & Protocol Inspector',
@@ -108,7 +108,7 @@ export const TRANSLATIONS = {
     btnTestBlink: 'Testowy błysk',
     btnReleaseCamera: 'Zwolnij kamerę',
     togglePreview: 'Pokaż podgląd z kamery do celowania',
-    previewHint: 'Skieruj tylną diodę LED (obok obiektywu) na indeks godziny 12 na tarczy zegarka.',
+    previewHint: 'Skieruj tylną diodę LED (obok obiektywu) na czujnik ukryty w cyfrze „1” z „12” na tarczy zegarka.',
     homeTitle: 'Czas domowy (T1)',
     travelTitle: 'Czas podróży (T2)',
     tzSearchPlaceholder: 'Szukaj strefy czasowej (np. Warsaw, New York, Tokyo)...',
@@ -134,7 +134,7 @@ export const TRANSLATIONS = {
     step2:
       'Wybierz strefę dla <strong>Czasu domowego (T1)</strong> lub <strong>Czasu podróży (T2)</strong>. Czas UTC, data, przesunięcie strefowe oraz daty zmiany czasu DST zostaną zakodowane automatycznie.',
     step3:
-      '<strong>Android (Latarka LED):</strong> Przytrzymaj tylną latarkę telefonu 2–5 cm bezpośrednio nad czujnikiem na godzinie 12 tarczy.<br><strong>iOS / Ekran telefonu / Monitor PC:</strong> Ustaw jasność ekranu na 100%, przygaś światło w pokoju i przyłóż tarczę zegarka bezpośrednio do migającego biało-czarnego pola.',
+      '<strong>Android (Latarka LED):</strong> Przytrzymaj tylną latarkę telefonu 2–5 cm bezpośrednio nad czujnikiem optycznym ukrytym w cyfrze „1” z „12” na tarczy.<br><strong>iOS / Ekran telefonu / Monitor PC:</strong> Ustaw jasność ekranu na 100%, przygaś światło w pokoju i przyłóż tarczę zegarka bezpośrednio do migającego biało-czarnego pola.',
     step4:
       'Kliknij <strong>Wyślij</strong> i utrzymuj zegarek nieruchomo przez ok. 2–4 sekundy, aż transmisja się zakończy i wskazówki przestawią się na właściwą godzinę.',
     advancedTitle: 'Kalibracja i podgląd ramki protokołu',
