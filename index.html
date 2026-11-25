@@ -1,0 +1,346 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#0b1220" />
+    <meta
+      name="description"
+      content="Optical flash time & date transmitter (WOP v2.4) for Longines Conquest V.H.P. GMT watches using phone LED flashlight or screen flash."
+    />
+    <title>Optical Flash Time Sync — Longines Conquest V.H.P. GMT</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div class="brand">
+          <div class="brand-mark" aria-hidden="true">
+            <span id="liveLedDot" class="led-dot"></span>
+          </div>
+          <div>
+            <h1 data-i18n="appTitle">Optical Flash Time Sync</h1>
+            <p class="subtitle" data-i18n="appSubtitle">
+              Web transmitter for optical watch setting (WOP v2.4)
+            </p>
+          </div>
+        </div>
+
+        <div class="topbar-right">
+          <div class="utc-pill" aria-live="off">
+            <span class="utc-label" data-i18n="utcClockLabel">Device UTC</span>
+            <span id="utcClock" class="mono utc-value">--:--:--.---</span>
+            <span id="utcDate" class="mono utc-date">----/--/--</span>
+          </div>
+          <div class="lang-switch" role="group" aria-label="Language">
+            <button type="button" class="lang-btn" data-lang="en">EN</button>
+            <button type="button" class="lang-btn" data-lang="pl">PL</button>
+          </div>
+        </div>
+      </header>
+
+      <section class="notice-banner" role="note">
+        <div class="notice-icon" aria-hidden="true">ⓘ</div>
+        <div>
+          <strong data-i18n="compatTitle">Compatibility Notice</strong>
+          <p data-i18n-html="compatBody">
+            Currently this application supports <strong>Longines Conquest V.H.P. GMT</strong> (Flash Setting) only.
+            It is unknown whether it will work with other watches.
+          </p>
+        </div>
+      </section>
+
+      <main class="main-grid">
+        <!-- Light Source Card -->
+        <section class="card card-full">
+          <div class="card-header">
+            <h2 data-i18n="lightSourceTitle">Light Source</h2>
+            <span id="envBadge" class="badge">HTTPS</span>
+          </div>
+
+          <div class="source-grid" role="radiogroup" aria-label="Light source">
+            <label class="source-option" id="optTorchLabel">
+              <input type="radio" name="lightSource" value="torch" id="srcTorch" />
+              <span class="source-card">
+                <span class="source-title">
+                  <span aria-hidden="true">🔦</span>
+                  <span data-i18n="sourceTorch">Rear LED Flashlight</span>
+                </span>
+                <span class="source-hint" data-i18n="sourceTorchHint">
+                  Recommended on Android (Chrome / Edge / Samsung Internet)
+                </span>
+              </span>
+            </label>
+
+            <label class="source-option" id="optScreenLabel">
+              <input type="radio" name="lightSource" value="screen" id="srcScreen" />
+              <span class="source-card">
+                <span class="source-title">
+                  <span aria-hidden="true">📱</span>
+                  <span data-i18n="sourceScreen">Screen Flash</span>
+                </span>
+                <span class="source-hint" data-i18n="sourceScreenHint">
+                  Works on iOS Safari &amp; any device without web torch API
+                </span>
+              </span>
+            </label>
+          </div>
+
+          <p id="torchStatusMsg" class="status-note" data-i18n="torchStatusChecking">
+            Tap "Enable Camera / LED" or Transmit to check rear LED flashlight support.
+          </p>
+
+          <div class="torch-controls" id="torchControlsRow">
+            <button type="button" id="btnInitTorch" class="btn btn-secondary" data-i18n="btnInitTorch">
+              Enable Camera / Test LED
+            </button>
+            <button type="button" id="btnTestBlink" class="btn btn-ghost" data-i18n="btnTestBlink" disabled>
+              Test Blink
+            </button>
+            <button type="button" id="btnReleaseCamera" class="btn btn-ghost" data-i18n="btnReleaseCamera" hidden>
+              Release Camera
+            </button>
+            <label class="checkbox-inline" id="previewToggleWrap">
+              <input type="checkbox" id="chkPreview" />
+              <span data-i18n="togglePreview">Show camera alignment preview</span>
+            </label>
+          </div>
+
+          <div id="cameraPreviewWrap" class="camera-preview-wrap" hidden>
+            <div class="camera-stage">
+              <video id="cameraVideo" autoplay playsinline muted></video>
+              <div class="reticle" aria-hidden="true">
+                <div class="reticle-ring"></div>
+                <div class="reticle-12">12</div>
+              </div>
+            </div>
+            <p class="camera-hint" data-i18n="previewHint">
+              Aim the rear LED (next to the camera lens) at the 12 o'clock index on the watch dial.
+            </p>
+          </div>
+        </section>
+
+        <!-- Home Time (T1) -->
+        <section class="card tz-card" id="cardHome">
+          <div class="card-header">
+            <h2 data-i18n="homeTitle">Home Time (T1)</h2>
+            <span class="badge badge-gold">T1</span>
+          </div>
+
+          <div class="live-time-block">
+            <div id="homeTimeDisplay" class="mono big-time">--:--:--</div>
+            <div id="homeDateDisplay" class="mono sub-date">----/--/--</div>
+          </div>
+
+          <div class="field">
+            <label for="homeSearch" data-i18n="tzLabel">Timezone</label>
+            <input
+              type="search"
+              id="homeSearch"
+              class="input"
+              data-i18n-placeholder="tzSearchPlaceholder"
+              placeholder="Search timezone (e.g. Warsaw, New York, Tokyo)..."
+              autocomplete="off"
+            />
+            <select id="homeTzSelect" class="select" aria-label="Home timezone"></select>
+          </div>
+
+          <dl class="meta-list">
+            <div>
+              <dt data-i18n="stdOffsetLabel">Standard offset</dt>
+              <dd id="homeStdOffset" class="mono">--</dd>
+            </div>
+            <div>
+              <dt data-i18n="dstStatusLabel">DST schedule</dt>
+              <dd id="homeDstInfo" class="mono">--</dd>
+            </div>
+          </dl>
+
+          <button type="button" id="btnSendHome" class="btn btn-primary btn-block" data-i18n="btnSendHome">
+            Transmit Home (T1)
+          </button>
+        </section>
+
+        <!-- Travel Time (T2) -->
+        <section class="card tz-card" id="cardTravel">
+          <div class="card-header">
+            <h2 data-i18n="travelTitle">Travel Time (T2)</h2>
+            <span class="badge badge-blue">T2</span>
+          </div>
+
+          <div class="live-time-block">
+            <div id="travelTimeDisplay" class="mono big-time">--:--:--</div>
+            <div id="travelDateDisplay" class="mono sub-date">----/--/--</div>
+          </div>
+
+          <div class="field">
+            <label for="travelSearch" data-i18n="tzLabel">Timezone</label>
+            <input
+              type="search"
+              id="travelSearch"
+              class="input"
+              data-i18n-placeholder="tzSearchPlaceholder"
+              placeholder="Search timezone (e.g. Warsaw, New York, Tokyo)..."
+              autocomplete="off"
+            />
+            <select id="travelTzSelect" class="select" aria-label="Travel timezone"></select>
+          </div>
+
+          <dl class="meta-list">
+            <div>
+              <dt data-i18n="stdOffsetLabel">Standard offset</dt>
+              <dd id="travelStdOffset" class="mono">--</dd>
+            </div>
+            <div>
+              <dt data-i18n="dstStatusLabel">DST schedule</dt>
+              <dd id="travelDstInfo" class="mono">--</dd>
+            </div>
+          </dl>
+
+          <button type="button" id="btnSendTravel" class="btn btn-primary btn-block" data-i18n="btnSendTravel">
+            Transmit Travel (T2)
+          </button>
+        </section>
+
+        <!-- Transmission Progress & Status -->
+        <section class="card card-full tx-panel" aria-live="polite">
+          <div class="tx-top">
+            <div class="tx-status-wrap">
+              <span id="txPulseDot" class="pulse-indicator"></span>
+              <span id="txStatusText" data-i18n="statusIdle">Ready to transmit.</span>
+            </div>
+            <button type="button" id="btnCancelTx" class="btn btn-danger btn-sm" data-i18n="btnCancel" hidden>
+              Cancel
+            </button>
+          </div>
+          <div class="progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="txProgressBar">
+            <div id="txProgressFill" class="progress-fill"></div>
+          </div>
+        </section>
+
+        <!-- Step-by-step instructions -->
+        <section class="card card-full">
+          <h2 data-i18n="howToTitle">How to set your watch</h2>
+          <ol class="steps-list">
+            <li data-i18n-html="step1"></li>
+            <li data-i18n-html="step2"></li>
+            <li data-i18n-html="step3"></li>
+            <li data-i18n-html="step4"></li>
+          </ol>
+        </section>
+
+        <!-- Expandable Calibration & Protocol Inspector -->
+        <section class="card card-full">
+          <details id="advancedDetails">
+            <summary class="details-summary">
+              <span data-i18n="advancedTitle">Calibration &amp; Protocol Inspector</span>
+              <span class="chevron" aria-hidden="true">▾</span>
+            </summary>
+
+            <div class="advanced-body">
+              <div class="calib-grid">
+                <div class="field">
+                  <div class="label-row">
+                    <label for="bitPeriodRange" data-i18n="bitPeriodLabel">Bit period (ms)</label>
+                    <span id="bitPeriodVal" class="mono value-pill">30 ms</span>
+                  </div>
+                  <input type="range" id="bitPeriodRange" min="15" max="60" step="1" value="30" />
+                  <small class="help-text" data-i18n="bitPeriodHelp"></small>
+                </div>
+
+                <div class="field">
+                  <div class="label-row">
+                    <label for="torchOffsetRange" data-i18n="torchOffsetLabel">Torch turn-on offset (ms)</label>
+                    <span id="torchOffsetVal" class="mono value-pill">0 ms</span>
+                  </div>
+                  <input type="range" id="torchOffsetRange" min="-10" max="25" step="1" value="0" />
+                  <small class="help-text" data-i18n="torchOffsetHelp"></small>
+                </div>
+
+                <div class="field">
+                  <div class="label-row">
+                    <label for="screenCountdownRange" data-i18n="screenCountdownLabel">Screen Flash countdown (s)</label>
+                    <span id="screenCountdownVal" class="mono value-pill">2 s</span>
+                  </div>
+                  <input type="range" id="screenCountdownRange" min="0" max="5" step="1" value="2" />
+                </div>
+
+                <div class="field">
+                  <label for="dateRefSelect" data-i18n="dateRefLabel">Date reference</label>
+                  <select id="dateRefSelect" class="select">
+                    <option value="utc" data-i18n="dateRefUtc">UTC date (recommended)</option>
+                    <option value="local" data-i18n="dateRefLocal">Device local date</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="toggles-row">
+                <label class="checkbox-inline">
+                  <input type="checkbox" id="chkIncludeDst" checked />
+                  <span data-i18n="includeDstLabel">Include DST Summer/Winter message (opcodes 59/60)</span>
+                </label>
+
+                <label class="checkbox-inline">
+                  <input type="checkbox" id="chkCustomTime" />
+                  <span data-i18n="customTimeToggle">Manual UTC date &amp; time override (for testing)</span>
+                </label>
+              </div>
+
+              <div id="customTimeWrap" class="custom-time-wrap" hidden>
+                <label for="customUtcInput" data-i18n="customTimeLabel">Custom UTC date &amp; time</label>
+                <input type="datetime-local" id="customUtcInput" class="input mono" step="1" />
+              </div>
+
+              <div class="calib-actions">
+                <button type="button" id="btnResetDefaults" class="btn btn-ghost btn-sm" data-i18n="resetDefaults">
+                  Reset Defaults
+                </button>
+              </div>
+
+              <div class="inspector-box">
+                <div class="inspector-head">
+                  <h3 data-i18n="inspectorTitle">Encoded WOP v2.4 Frame Preview</h3>
+                  <div class="inspector-tabs">
+                    <button type="button" class="tab-btn active" data-inspect="home">T1 (Home)</button>
+                    <button type="button" class="tab-btn" data-inspect="travel">T2 (Travel)</button>
+                  </div>
+                </div>
+                <p id="inspectorSummary" class="mono inspector-summary"></p>
+                <canvas id="waveformCanvas" class="waveform-canvas" width="720" height="86"></canvas>
+                <div id="inspectorSegments" class="segments-grid mono"></div>
+              </div>
+            </div>
+          </details>
+        </section>
+      </main>
+
+      <footer class="footer">
+        <p data-i18n="footerNote"></p>
+      </footer>
+    </div>
+
+    <!-- Full-screen Optical Display Flash Overlay (used in Screen Flash mode / iOS) -->
+    <div id="screenFlashOverlay" class="screen-overlay" hidden>
+      <div id="screenFlashPad" class="screen-flash-pad">
+        <div id="screenFlashGuide" class="screen-flash-guide">
+          <div class="watch-ring">
+            <span class="watch-12">12</span>
+          </div>
+          <p id="screenOverlayText" data-i18n="screenOverlayHint">
+            Place watch 12 o'clock sensor over the bright area
+          </p>
+        </div>
+      </div>
+      <div class="screen-overlay-bar">
+        <div class="overlay-progress-track">
+          <div id="screenOverlayProgress" class="overlay-progress-fill"></div>
+        </div>
+        <button type="button" id="btnOverlayCancel" class="btn btn-ghost btn-sm" data-i18n="screenOverlayCancel">
+          Tap to cancel
+        </button>
+      </div>
+    </div>
+
+    <script type="module" src="js/app.js"></script>
+  </body>
+</html>
