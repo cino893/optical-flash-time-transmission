@@ -11,7 +11,7 @@ import {
   getLocalParts,
   formatUtcOffset,
 } from './timezone-utils.js';
-import { OpticalFlashDriver, detectEnvironment } from './flash-driver.js';
+import { OpticalFlashDriver, detectEnvironment, classifyCameraError } from './flash-driver.js';
 import { detectInitialLanguage, createTranslator } from './i18n.js';
 import { syncNetworkUtcOffset } from './time-sync.js';
 import {
@@ -61,10 +61,12 @@ const state = {
   timeSyncInfo: null,
   timeSyncBusy: false,
   torchBench: null,
+  cameraErrorKind: null,
   customTimeEnabled: false,
   inspectMode: 'home',
   transmitting: false,
   abortController: null,
+  toast: null,
 };
 
 state.t = createTranslator(state.lang);
@@ -77,6 +79,7 @@ const el = {
   btnSyncTime: document.getElementById('btnSyncTime'),
   timeSyncText: document.getElementById('timeSyncText'),
   envBadge: document.getElementById('envBadge'),
+  optScreenLabel: document.getElementById('optScreenLabel'),
   srcTorch: document.getElementById('srcTorch'),
   srcScreen: document.getElementById('srcScreen'),
   torchStatusMsg: document.getElementById('torchStatusMsg'),
@@ -84,6 +87,7 @@ const el = {
   btnInitTorch: document.getElementById('btnInitTorch'),
   btnTestBlink: document.getElementById('btnTestBlink'),
   btnReleaseCamera: document.getElementById('btnReleaseCamera'),
+  btnSwitchToScreen: document.getElementById('btnSwitchToScreen'),
   previewToggleWrap: document.getElementById('previewToggleWrap'),
   chkPreview: document.getElementById('chkPreview'),
   cameraPreviewWrap: document.getElementById('cameraPreviewWrap'),
@@ -108,6 +112,15 @@ const el = {
   btnCancelTx: document.getElementById('btnCancelTx'),
   txProgressBar: document.getElementById('txProgressBar'),
   txProgressFill: document.getElementById('txProgressFill'),
+  txToast: document.getElementById('txToast'),
+  txToastIcon: document.getElementById('txToastIcon'),
+  txToastTitle: document.getElementById('txToastTitle'),
+  txToastMessage: document.getElementById('txToastMessage'),
+  txToastProgressTrack: document.getElementById('txToastProgressTrack'),
+  txToastProgressFill: document.getElementById('txToastProgressFill'),
+  btnToastSwitchScreen: document.getElementById('btnToastSwitchScreen'),
+  btnToastCancel: document.getElementById('btnToastCancel'),
+  btnToastClose: document.getElementById('btnToastClose'),
   bitPeriodRange: document.getElementById('bitPeriodRange'),
   bitPeriodVal: document.getElementById('bitPeriodVal'),
   screenBitPeriodRange: document.getElementById('screenBitPeriodRange'),
@@ -186,6 +199,12 @@ function getActiveBitPeriodMs(lightMode = state.lightMode) {
 
 function setLightMode(mode) {
   state.lightMode = mode === 'screen' ? 'screen' : 'torch';
+  if (state.lightMode === 'screen') {
+    state.cameraErrorKind = null;
+    if (state.toast && state.toast.kind === 'error' && state.toast.showSwitchToScreen) {
+      hideToast();
+    }
+  }
   saveStorage(STORAGE_KEYS.lightMode, state.lightMode);
   updateTorchStatusUI();
   updateInspector();
@@ -236,6 +255,7 @@ function applyLanguage(lang) {
   updateTimezoneMeta('home');
   updateTimezoneMeta('travel');
   updateInspector();
+  renderToast();
 }
 
 // ---------- Network UTC Time Sync ----------
@@ -358,6 +378,47 @@ function updateTimezoneMeta(which) {
 
 // ---------- Environment & Torch UI ----------
 
+function getCameraErrorMessage(kind, err = null) {
+  switch (kind) {
+    case 'permission_denied':
+      return state.t('torchStatusPermissionDenied');
+    case 'no_camera':
+      return state.t('torchStatusNoCamera');
+    case 'camera_busy':
+      return state.t('torchStatusCameraBusy');
+    case 'insecure_context':
+      return state.t('torchStatusInsecure');
+    case 'no_torch':
+      return state.t(env.ios ? 'torchStatusIosWarning' : 'torchStatusUnsupported');
+    default:
+      return state.t('statusError', { msg: err?.message || String(err || 'Unknown camera error') });
+  }
+}
+
+async function initCameraPermissionMonitor() {
+  try {
+    if (!navigator.permissions || typeof navigator.permissions.query !== 'function') {
+      return;
+    }
+    const permStatus = await navigator.permissions.query({ name: 'camera' });
+    if (permStatus.state === 'denied') {
+      state.cameraErrorKind = 'permission_denied';
+      updateTorchStatusUI();
+    }
+    permStatus.onchange = () => {
+      if (permStatus.state === 'granted') {
+        state.cameraErrorKind = null;
+        updateTorchStatusUI();
+      } else if (permStatus.state === 'denied') {
+        state.cameraErrorKind = 'permission_denied';
+        updateTorchStatusUI();
+      }
+    };
+  } catch {
+    // Safari / Firefox may not support querying 'camera' permission
+  }
+}
+
 function updateTorchStatusUI() {
   el.torchStatusMsg.classList.remove('ok', 'warn');
   const isScreen = state.lightMode === 'screen';
@@ -369,18 +430,27 @@ function updateTorchStatusUI() {
   }
 
   if (isScreen) {
-    if (driver.torchSupported === false) {
-      el.torchStatusMsg.textContent = env.ios
-        ? state.t('torchStatusIosWarning')
-        : state.t('torchStatusUnsupported');
-      el.torchStatusMsg.classList.add('warn');
-    } else if (!env.mobile) {
+    if (!env.mobile) {
       el.torchStatusMsg.textContent = state.t('torchStatusDesktop');
     } else {
       el.torchStatusMsg.textContent = state.t('torchStatusScreenActive');
     }
-  } else if (!env.secureContext) {
+  } else if (!env.secureContext || state.cameraErrorKind === 'insecure_context') {
     el.torchStatusMsg.textContent = state.t('torchStatusInsecure');
+    el.torchStatusMsg.classList.add('warn');
+  } else if (state.cameraErrorKind === 'permission_denied') {
+    el.torchStatusMsg.textContent = state.t('torchStatusPermissionDenied');
+    el.torchStatusMsg.classList.add('warn');
+  } else if (state.cameraErrorKind === 'no_camera') {
+    el.torchStatusMsg.textContent = state.t('torchStatusNoCamera');
+    el.torchStatusMsg.classList.add('warn');
+  } else if (state.cameraErrorKind === 'camera_busy') {
+    el.torchStatusMsg.textContent = state.t('torchStatusCameraBusy');
+    el.torchStatusMsg.classList.add('warn');
+  } else if (state.cameraErrorKind === 'no_torch' || driver.torchSupported === false) {
+    el.torchStatusMsg.textContent = env.ios
+      ? state.t('torchStatusIosWarning')
+      : state.t('torchStatusUnsupported');
     el.torchStatusMsg.classList.add('warn');
   } else if (driver.torchSupported === true) {
     if (state.torchBench) {
@@ -402,11 +472,6 @@ function updateTorchStatusUI() {
       el.torchStatusMsg.textContent = state.t('torchStatusReady');
       el.torchStatusMsg.classList.add('ok');
     }
-  } else if (driver.torchSupported === false) {
-    el.torchStatusMsg.textContent = env.ios
-      ? state.t('torchStatusIosWarning')
-      : state.t('torchStatusUnsupported');
-    el.torchStatusMsg.classList.add('warn');
   } else if (env.ios) {
     el.torchStatusMsg.textContent = state.t('torchStatusIosWarning');
     el.torchStatusMsg.classList.add('warn');
@@ -414,11 +479,20 @@ function updateTorchStatusUI() {
     el.torchStatusMsg.textContent = state.t('torchStatusChecking');
   }
 
+  const showSwitchToScreen =
+    state.lightMode === 'torch' &&
+    (state.cameraErrorKind === 'permission_denied' ||
+      state.cameraErrorKind === 'no_camera' ||
+      state.cameraErrorKind === 'no_torch');
+
   el.srcTorch.checked = !isScreen;
   el.srcScreen.checked = isScreen;
   el.btnInitTorch.hidden = isScreen;
   el.previewToggleWrap.hidden = isScreen;
   el.btnReleaseCamera.hidden = isScreen || !driver.hasActiveCamera;
+  if (el.btnSwitchToScreen) {
+    el.btnSwitchToScreen.hidden = !showSwitchToScreen;
+  }
   el.btnTestBlink.disabled = state.transmitting;
 
   updateCameraPreviewVisibility();
@@ -440,13 +514,17 @@ async function handleInitTorch() {
     const res = await driver.acquireTorch();
     if (!res.supported) {
       state.torchBench = null;
+      state.cameraErrorKind = 'no_torch';
       el.chkPreview.checked = false;
-      state.lightMode = 'screen';
-      saveStorage(STORAGE_KEYS.lightMode, state.lightMode);
-      setTxStatus(state.t(env.ios ? 'torchStatusIosWarning' : 'torchStatusUnsupported'), 'error');
+      driver.releaseCamera();
+      setTxStatus(getCameraErrorMessage('no_torch'), 'error');
+      showToast({
+        kind: 'error',
+        errorKind: 'no_torch',
+        showSwitchToScreen: true,
+      });
     } else {
-      state.lightMode = 'torch';
-      saveStorage(STORAGE_KEYS.lightMode, state.lightMode);
+      state.cameraErrorKind = null;
       setTxStatus(state.t('torchStatusBenchmarking'), 'active');
       const bench = await driver.benchmarkTorch(3);
       state.torchBench = bench;
@@ -477,11 +555,17 @@ async function handleInitTorch() {
     }
   } catch (err) {
     state.torchBench = null;
-    driver.torchSupported = false;
+    const kind = err?.cameraErrorKind || classifyCameraError(err);
+    state.cameraErrorKind = kind;
     el.chkPreview.checked = false;
-    state.lightMode = 'screen';
-    saveStorage(STORAGE_KEYS.lightMode, state.lightMode);
-    setTxStatus(state.t('statusError', { msg: err.message || String(err) }), 'error');
+    driver.releaseCamera();
+    setTxStatus(getCameraErrorMessage(kind, err), 'error');
+    showToast({
+      kind: 'error',
+      errorKind: kind,
+      rawError: err?.message || String(err),
+      showSwitchToScreen: isCameraSwitchableError(kind),
+    });
   } finally {
     if (!el.chkPreview.checked || state.lightMode !== 'torch' || !driver.torchSupported) {
       driver.releaseCamera();
@@ -641,11 +725,111 @@ function setTxStatus(text, mood = 'idle') {
   if (mood === 'error') el.txPulseDot.classList.add('error');
 }
 
+function isCameraSwitchableError(kind) {
+  return (
+    kind === 'permission_denied' ||
+    kind === 'no_camera' ||
+    kind === 'no_torch' ||
+    kind === 'camera_busy' ||
+    kind === 'insecure_context'
+  );
+}
+
+function renderToast() {
+  if (!el.txToast) return;
+  const toast = state.toast;
+  if (!toast) {
+    el.txToast.hidden = true;
+    return;
+  }
+
+  el.txToast.classList.remove('tx-toast--active', 'tx-toast--done', 'tx-toast--error');
+  el.txToast.classList.add(`tx-toast--${toast.kind}`);
+  el.txToast.setAttribute('role', toast.kind === 'error' ? 'alert' : 'status');
+
+  const modeLabel =
+    toast.mode === 'home'
+      ? state.t('homeTitle')
+      : toast.mode === 'travel'
+        ? state.t('travelTitle')
+        : '';
+
+  if (toast.kind === 'active') {
+    el.txToastTitle.textContent = modeLabel
+      ? state.t('toastTitleActiveMode', { mode: modeLabel })
+      : state.t('toastTitleActive');
+    el.txToastMessage.textContent = toast.messageKey
+      ? state.t(toast.messageKey, toast.messageVars)
+      : '';
+    el.txToastMessage.classList.remove('mono');
+    el.txToastProgressTrack.hidden = false;
+    el.btnToastCancel.textContent = state.t('btnCancel');
+    el.btnToastCancel.hidden = !toast.showCancel;
+    el.btnToastClose.hidden = true;
+    el.btnToastSwitchScreen.hidden = true;
+  } else if (toast.kind === 'done') {
+    el.txToastTitle.textContent = state.t('toastTitleDone');
+    el.txToastMessage.textContent = state.t('toastDetailsDone', {
+      mode: modeLabel,
+      utc: toast.utc,
+      bits: toast.bits,
+      dur: toast.dur,
+    });
+    el.txToastMessage.classList.add('mono');
+    el.txToastProgressTrack.hidden = true;
+    el.btnToastCancel.hidden = true;
+    el.btnToastSwitchScreen.hidden = true;
+    el.btnToastClose.textContent = state.t('toastBtnOk');
+    el.btnToastClose.hidden = false;
+  } else if (toast.kind === 'error') {
+    el.txToastTitle.textContent =
+      toast.errorKind === 'permission_denied'
+        ? state.t('toastTitlePermissionDenied')
+        : state.t('toastTitleError');
+    el.txToastMessage.textContent =
+      toast.errorKind && toast.errorKind !== 'generic'
+        ? getCameraErrorMessage(toast.errorKind, toast.rawError ? { message: toast.rawError } : null)
+        : state.t('statusError', { msg: toast.rawError || 'Unknown error' });
+    el.txToastMessage.classList.remove('mono');
+    el.txToastProgressTrack.hidden = true;
+    el.btnToastCancel.hidden = true;
+    el.btnToastSwitchScreen.textContent = state.t('btnSwitchToScreen');
+    el.btnToastSwitchScreen.hidden = !(toast.showSwitchToScreen && state.lightMode === 'torch');
+    el.btnToastClose.textContent = state.t('toastBtnClose');
+    el.btnToastClose.hidden = false;
+  }
+
+  el.txToast.hidden = false;
+}
+
+function showToast(payload) {
+  state.toast = { ...payload };
+  renderToast();
+}
+
+function updateToastActive(messageKey, messageVars = null) {
+  if (!state.toast || state.toast.kind !== 'active') return;
+  state.toast.messageKey = messageKey;
+  state.toast.messageVars = messageVars;
+  renderToast();
+}
+
+function hideToast() {
+  state.toast = null;
+  if (!el.txToast) return;
+  el.txToast.hidden = true;
+  el.txToast.classList.remove('tx-toast--active', 'tx-toast--done', 'tx-toast--error');
+  if (el.txToastIcon) el.txToastIcon.classList.remove('flash-on');
+}
+
 function setProgress(pct) {
   const clamped = Math.max(0, Math.min(100, Math.round(pct)));
   el.txProgressFill.style.width = `${clamped}%`;
   el.txProgressBar.setAttribute('aria-valuenow', String(clamped));
   el.screenOverlayProgress.style.width = `${clamped}%`;
+  if (el.txToastProgressFill) {
+    el.txToastProgressFill.style.width = `${clamped}%`;
+  }
 }
 
 function setButtonsDisabled(disabled) {
@@ -653,6 +837,7 @@ function setButtonsDisabled(disabled) {
   el.btnSendTravel.disabled = disabled;
   el.btnInitTorch.disabled = disabled;
   el.btnTestBlink.disabled = disabled;
+  if (el.btnSwitchToScreen) el.btnSwitchToScreen.disabled = disabled;
   if (el.btnSwapTz) el.btnSwapTz.disabled = disabled;
   el.btnCancelTx.hidden = !disabled;
 }
@@ -690,6 +875,12 @@ async function startTransmission(mode) {
   const { signal } = state.abortController;
   setButtonsDisabled(true);
   setProgress(0);
+  showToast({
+    kind: 'active',
+    mode,
+    messageKey: 'statusPreparing',
+    showCancel: true,
+  });
 
   const tzId = mode === 'home' ? state.homeTz : state.travelTz;
   const tzInfo = getTzAnalysis(tzId);
@@ -703,20 +894,36 @@ async function startTransmission(mode) {
       try {
         const res = await driver.acquireTorch();
         if (!res.supported) {
-          activeLightMode = 'screen';
-          state.lightMode = 'screen';
-          saveStorage(STORAGE_KEYS.lightMode, state.lightMode);
+          state.cameraErrorKind = 'no_torch';
+          el.chkPreview.checked = false;
+          driver.releaseCamera();
+          feedbackError(state.feedbackEnabled);
+          setTxStatus(getCameraErrorMessage('no_torch'), 'error');
+          showToast({
+            kind: 'error',
+            errorKind: 'no_torch',
+            showSwitchToScreen: true,
+          });
           updateTorchStatusUI();
-          updateInspector();
+          return;
         }
-      } catch (err) {
-        driver.torchSupported = false;
-        activeLightMode = 'screen';
-        state.lightMode = 'screen';
-        saveStorage(STORAGE_KEYS.lightMode, state.lightMode);
+        state.cameraErrorKind = null;
         updateTorchStatusUI();
-        updateInspector();
-        void err;
+      } catch (err) {
+        const kind = err?.cameraErrorKind || classifyCameraError(err);
+        state.cameraErrorKind = kind;
+        el.chkPreview.checked = false;
+        driver.releaseCamera();
+        feedbackError(state.feedbackEnabled);
+        setTxStatus(getCameraErrorMessage(kind, err), 'error');
+        showToast({
+          kind: 'error',
+          errorKind: kind,
+          rawError: err?.message || String(err),
+          showSwitchToScreen: isCameraSwitchableError(kind),
+        });
+        updateTorchStatusUI();
+        return;
       }
     }
 
@@ -733,6 +940,7 @@ async function startTransmission(mode) {
         await runCountdown(state.screenCountdownSec, signal, (sec) => {
           el.screenOverlayText.textContent = state.t('screenOverlayPrep', { sec });
           setTxStatus(state.t('statusCountdown', { sec }), 'active');
+          updateToastActive('statusCountdown', { sec });
         });
       }
       el.screenOverlayText.textContent = state.t('screenOverlayHint');
@@ -792,6 +1000,7 @@ async function startTransmission(mode) {
 
     if (startDelayMs > 40) {
       setTxStatus(state.t('statusWaitingSync', { ms: Math.round(startDelayMs) }), 'active');
+      updateToastActive('statusWaitingSync', { ms: Math.round(startDelayMs) });
     }
 
     // 4. Transmit optical pulses!
@@ -806,6 +1015,9 @@ async function startTransmission(mode) {
       onLightChange: (isOn) => {
         el.liveLedDot.classList.toggle('on', isOn);
         el.txPulseDot.classList.toggle('flash-on', isOn);
+        if (el.txToastIcon) {
+          el.txToastIcon.classList.toggle('flash-on', isOn);
+        }
         if (activeLightMode === 'screen') {
           el.screenFlashPad.classList.toggle('lit', isOn);
         }
@@ -818,31 +1030,51 @@ async function startTransmission(mode) {
         const pct = Math.round((sent / total) * 100);
         setProgress(pct);
         setTxStatus(state.t('statusTransmitting', { sent, total, pct }), 'active');
+        updateToastActive('statusTransmitting', { sent, total, pct });
       },
     });
 
     feedbackSuccess(state.feedbackEnabled);
     setProgress(100);
+    const sentUtc = formatUtcHms(targetUtcMs);
     setTxStatus(
       state.t('statusDone', {
-        utc: formatUtcHms(targetUtcMs),
+        utc: sentUtc,
         bits: txBits.length,
         dur: stats.actualDurationMs,
         jitter: stats.avgJitterMs,
       }),
       'done',
     );
+    showToast({
+      kind: 'done',
+      mode,
+      utc: sentUtc,
+      bits: txBits.length,
+      dur: stats.actualDurationMs,
+    });
   } catch (err) {
     if (err && err.name === 'AbortError') {
       setTxStatus(state.t('statusCancelled'), 'idle');
       setProgress(0);
+      hideToast();
     } else {
       feedbackError(state.feedbackEnabled);
-      setTxStatus(state.t('statusError', { msg: err?.message || String(err) }), 'error');
+      const errMsg = err?.message || String(err);
+      setTxStatus(state.t('statusError', { msg: errMsg }), 'error');
+      showToast({
+        kind: 'error',
+        errorKind: 'generic',
+        rawError: errMsg,
+        showSwitchToScreen: false,
+      });
     }
   } finally {
     el.liveLedDot.classList.remove('on');
     el.txPulseDot.classList.remove('flash-on');
+    if (el.txToastIcon) {
+      el.txToastIcon.classList.remove('flash-on');
+    }
     el.screenFlashPad.classList.remove('lit', 'tx-active');
     el.screenFlashOverlay.hidden = true;
     if (document.fullscreenElement === el.screenFlashOverlay && typeof document.exitFullscreen === 'function') {
@@ -916,11 +1148,28 @@ function initControls() {
   });
   el.srcScreen.addEventListener('change', () => {
     if (el.srcScreen.checked) {
+      state.cameraErrorKind = null;
       el.chkPreview.checked = false;
       driver.releaseCamera();
       setLightMode('screen');
     }
   });
+  if (el.optScreenLabel) {
+    el.optScreenLabel.addEventListener('click', () => {
+      state.cameraErrorKind = null;
+      updateTorchStatusUI();
+    });
+  }
+  if (el.btnSwitchToScreen) {
+    el.btnSwitchToScreen.addEventListener('click', () => {
+      if (state.transmitting) return;
+      state.cameraErrorKind = null;
+      el.chkPreview.checked = false;
+      driver.releaseCamera();
+      setLightMode('screen');
+      setTxStatus(state.t('statusIdle'), 'idle');
+    });
+  }
 
   el.btnInitTorch.addEventListener('click', handleInitTorch);
   el.btnTestBlink.addEventListener('click', async () => {
@@ -937,10 +1186,30 @@ function initControls() {
     try {
       const ok = await driver.testBlink(200);
       if (!ok) {
-        setLightMode('screen');
+        state.cameraErrorKind = 'no_torch';
+        el.chkPreview.checked = false;
+        driver.releaseCamera();
+        setTxStatus(getCameraErrorMessage('no_torch'), 'error');
+        showToast({
+          kind: 'error',
+          errorKind: 'no_torch',
+          showSwitchToScreen: true,
+        });
+      } else {
+        state.cameraErrorKind = null;
       }
     } catch (err) {
-      setTxStatus(state.t('statusError', { msg: err.message || String(err) }), 'error');
+      const kind = err?.cameraErrorKind || classifyCameraError(err);
+      state.cameraErrorKind = kind;
+      el.chkPreview.checked = false;
+      driver.releaseCamera();
+      setTxStatus(getCameraErrorMessage(kind, err), 'error');
+      showToast({
+        kind: 'error',
+        errorKind: kind,
+        rawError: err?.message || String(err),
+        showSwitchToScreen: isCameraSwitchableError(kind),
+      });
     } finally {
       if (!el.chkPreview.checked) {
         driver.releaseCamera();
@@ -1012,6 +1281,23 @@ function initControls() {
   el.btnSendTravel.addEventListener('click', () => startTransmission('travel'));
   el.btnCancelTx.addEventListener('click', cancelTransmission);
   el.btnOverlayCancel.addEventListener('click', cancelTransmission);
+  if (el.btnToastCancel) {
+    el.btnToastCancel.addEventListener('click', cancelTransmission);
+  }
+  if (el.btnToastClose) {
+    el.btnToastClose.addEventListener('click', hideToast);
+  }
+  if (el.btnToastSwitchScreen) {
+    el.btnToastSwitchScreen.addEventListener('click', () => {
+      if (state.transmitting) return;
+      state.cameraErrorKind = null;
+      el.chkPreview.checked = false;
+      driver.releaseCamera();
+      setLightMode('screen');
+      setTxStatus(state.t('statusIdle'), 'idle');
+      hideToast();
+    });
+  }
 
   // Calibration controls
   el.bitPeriodRange.value = String(state.bitPeriodMs);
@@ -1124,10 +1410,14 @@ function initControls() {
     });
   });
 
-  // Allow Escape key to cancel active transmission (especially useful in fullscreen monitor mode)
+  // Allow Escape key to cancel active transmission or dismiss sticky notification
   window.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && state.transmitting) {
-      cancelTransmission();
+    if (e.key === 'Escape') {
+      if (state.transmitting) {
+        cancelTransmission();
+      } else if (state.toast) {
+        hideToast();
+      }
     }
   });
 
@@ -1144,6 +1434,7 @@ function initControls() {
 
 initControls();
 applyLanguage(state.lang);
+initCameraPermissionMonitor();
 tickClocks();
 registerServiceWorker();
 runTimeSync();

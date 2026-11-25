@@ -18,7 +18,7 @@ import {
   bitsToString,
 } from '../js/wop-protocol.js';
 import { analyzeTimezone } from '../js/timezone-utils.js';
-import { recommendBitPeriodFromLatency } from '../js/flash-driver.js';
+import { recommendBitPeriodFromLatency, classifyCameraError } from '../js/flash-driver.js';
 import { computeClockOffsetMs } from '../js/time-sync.js';
 
 test('ProtHeader matches 117 << 1 = 11101010', () => {
@@ -284,4 +284,28 @@ test('computeClockOffsetMs compensates for symmetric half-RTT and positive/negat
     computeClockOffsetMs({ t0Ms: 1_000_000, t1Ms: 1_000_100, serverUtcMs: 999_630 }),
     { offsetMs: -420, rttMs: 100 },
   );
+});
+
+test('classifyCameraError categorizes permission, missing hardware, busy camera, HTTPS, and unknown errors', () => {
+  assert.equal(classifyCameraError({ name: 'NotAllowedError', message: 'Permission denied' }), 'permission_denied');
+  assert.equal(classifyCameraError({ name: 'PermissionDeniedError' }), 'permission_denied');
+  assert.equal(classifyCameraError({ name: 'SecurityError', message: 'Blocked by policy' }), 'permission_denied');
+
+  assert.equal(classifyCameraError({ name: 'NotFoundError' }), 'no_camera');
+  assert.equal(classifyCameraError({ name: 'DevicesNotFoundError' }), 'no_camera');
+  assert.equal(classifyCameraError({ name: 'OverconstrainedError' }), 'no_camera');
+
+  assert.equal(classifyCameraError({ name: 'NotReadableError' }), 'camera_busy');
+  assert.equal(classifyCameraError({ name: 'TrackStartError' }), 'camera_busy');
+  assert.equal(classifyCameraError({ name: 'AbortError' }), 'camera_busy');
+
+  assert.equal(classifyCameraError({ code: 'INSECURE_CONTEXT', message: 'Insecure context' }), 'insecure_context');
+  assert.equal(
+    classifyCameraError(new Error('HTTPS is required for camera/flashlight access.')),
+    'insecure_context',
+  );
+
+  assert.equal(classifyCameraError(new Error('Unexpected driver failure')), 'unknown');
+  assert.equal(classifyCameraError(null), 'unknown');
+  assert.equal(classifyCameraError(undefined), 'unknown');
 });

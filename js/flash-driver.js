@@ -36,6 +36,41 @@ export function detectEnvironment() {
   };
 }
 
+export function classifyCameraError(err) {
+  if (!err) {
+    return 'unknown';
+  }
+  const code = typeof err.code === 'string' ? err.code : '';
+  const name = typeof err.name === 'string' ? err.name : '';
+  const message = typeof err.message === 'string' ? err.message : '';
+
+  if (code === 'INSECURE_CONTEXT' || /https/i.test(message)) {
+    return 'insecure_context';
+  }
+  if (
+    name === 'NotAllowedError' ||
+    name === 'PermissionDeniedError' ||
+    name === 'SecurityError'
+  ) {
+    return 'permission_denied';
+  }
+  if (
+    name === 'NotFoundError' ||
+    name === 'DevicesNotFoundError' ||
+    name === 'OverconstrainedError'
+  ) {
+    return 'no_camera';
+  }
+  if (
+    name === 'NotReadableError' ||
+    name === 'TrackStartError' ||
+    name === 'AbortError'
+  ) {
+    return 'camera_busy';
+  }
+  return 'unknown';
+}
+
 function median(values) {
   if (!values.length) return 0;
   const sorted = [...values].sort((a, b) => a - b);
@@ -123,27 +158,50 @@ export class OpticalFlashDriver {
 
     if (!window.isSecureContext) {
       this.torchSupported = false;
-      throw new Error('HTTPS is required for camera/flashlight access.');
+      const err = new Error('HTTPS is required for camera/flashlight access.');
+      err.code = 'INSECURE_CONTEXT';
+      err.cameraErrorKind = 'insecure_context';
+      throw err;
     }
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
       this.torchSupported = false;
-      throw new Error('MediaDevices API is not available in this browser.');
+      const err = new Error('MediaDevices API is not available in this browser.');
+      err.cameraErrorKind = 'unknown';
+      throw err;
     }
 
-    const stream = await navigator.mediaDevices.getUserMedia({
-      video: {
-        facingMode: { ideal: 'environment' },
-        width: { ideal: 640 },
-        height: { ideal: 480 },
-      },
-      audio: false,
-    });
+    let stream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: { ideal: 'environment' },
+          width: { ideal: 640 },
+          height: { ideal: 480 },
+        },
+        audio: false,
+      });
+    } catch (err) {
+      const kind = classifyCameraError(err);
+      if (kind === 'permission_denied' || kind === 'camera_busy') {
+        this.torchSupported = null;
+      }
+      if (err && typeof err === 'object') {
+        try {
+          err.cameraErrorKind = kind;
+        } catch {
+          // ignore non-extensible error object
+        }
+      }
+      throw err;
+    }
 
     const track = stream.getVideoTracks()[0];
     if (!track) {
       stream.getTracks().forEach((t) => t.stop());
-      this.torchSupported = false;
-      throw new Error('No rear camera video track found.');
+      const err = new Error('No rear camera video track found.');
+      err.name = 'NotFoundError';
+      err.cameraErrorKind = 'no_camera';
+      throw err;
     }
 
     let supportsTorch = false;
