@@ -380,7 +380,7 @@ function drawWaveform(txBits) {
   // Grid baseline
   const hiY = 16;
   const loY = h - 18;
-  ctx.strokeStyle = 'rgba(148, 163, 184, 0.16)';
+  ctx.strokeStyle = 'rgba(11, 26, 48, 0.14)';
   ctx.lineWidth = 1;
   ctx.beginPath();
   ctx.moveTo(0, hiY);
@@ -392,8 +392,8 @@ function drawWaveform(txBits) {
   if (!txBits || txBits.length === 0) return;
 
   const stepX = w / txBits.length;
-  ctx.strokeStyle = '#d4af37';
-  ctx.lineWidth = 2;
+  ctx.strokeStyle = '#0b1a30';
+  ctx.lineWidth = 1.8;
   ctx.beginPath();
   for (let i = 0; i < txBits.length; i++) {
     const x0 = i * stepX;
