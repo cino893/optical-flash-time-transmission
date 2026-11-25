@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="96" fill="#0b1a30"/>
+  <circle cx="256" cy="256" r="196" fill="none" stroke="#c5a467" stroke-width="10" opacity="0.85"/>
+  <circle cx="256" cy="256" r="172" fill="none" stroke="#c5a467" stroke-width="3" opacity="0.35"/>
+  <!-- Indices -->
+  <line x1="256" y1="84" x2="256" y2="116" stroke="#c5a467" stroke-width="14" stroke-linecap="butt"/>
+  <line x1="256" y1="396" x2="256" y2="428" stroke="#eef1f6" stroke-width="10"/>
+  <line x1="84" y1="256" x2="116" y2="256" stroke="#eef1f6" stroke-width="10"/>
+  <line x1="396" y1="256" x2="428" y2="256" stroke="#eef1f6" stroke-width="10"/>
+  <!-- 4 Hands (GMT, Hour, Minute, Seconds) -->
+  <g transform="translate(256,256)">
+    <g transform="rotate(230)">
+      <line x1="0" y1="0" x2="0" y2="-130" stroke="#d94646" stroke-width="8"/>
+      <polygon points="0,-158 -15,-124 15,-124" fill="#0b1a30" stroke="#d94646" stroke-width="7"/>
+    </g>
+    <g transform="rotate(305)">
+      <line x1="0" y1="18" x2="0" y2="-108" stroke="#eef1f6" stroke-width="16" stroke-linecap="round"/>
+    </g>
+    <g transform="rotate(58)">
+      <line x1="0" y1="20" x2="0" y2="-148" stroke="#eef1f6" stroke-width="11" stroke-linecap="round"/>
+    </g>
+    <g transform="rotate(128)">
+      <line x1="0" y1="36" x2="0" y2="-156" stroke="#c5a467" stroke-width="4"/>
+    </g>
+    <circle cx="0" cy="0" r="14" fill="#eef1f6" stroke="#0b1a30" stroke-width="4"/>
+  </g>
+</svg>

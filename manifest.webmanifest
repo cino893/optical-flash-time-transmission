@@ -1,0 +1,18 @@
+{
+  "name": "Optical Flash Time Sync — V.H.P. GMT",
+  "short_name": "Flash Sync",
+  "description": "Optical flash time & date transmitter (WOP v2.4) for Longines Conquest V.H.P. GMT watches.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0b1a30",
+  "theme_color": "#0b1a30",
+  "icons": [
+    {
+      "src": "./assets/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

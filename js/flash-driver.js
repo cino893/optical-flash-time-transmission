@@ -36,6 +36,42 @@ export function detectEnvironment() {
   };
 }
 
+function median(values) {
+  if (!values.length) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 0
+    ? (sorted[mid - 1] + sorted[mid]) / 2
+    : sorted[mid];
+}
+
+/**
+ * Recommend a WOP bit period based on measured rear LED torch toggle latencies.
+ */
+export function recommendBitPeriodFromLatency(
+  medianToggleMs,
+  maxToggleMs,
+  defaultBitPeriodMs = 30,
+) {
+  if (maxToggleMs <= 22 && medianToggleMs <= 16) {
+    return {
+      recommendedBitPeriodMs: defaultBitPeriodMs,
+      needsAdjustment: false,
+    };
+  }
+  const recommendedBitPeriodMs = Math.min(
+    80,
+    Math.max(
+      defaultBitPeriodMs,
+      Math.ceil((Math.max(medianToggleMs * 1.6, maxToggleMs) + 12) / 5) * 5,
+    ),
+  );
+  return {
+    recommendedBitPeriodMs,
+    needsAdjustment: recommendedBitPeriodMs > defaultBitPeriodMs,
+  };
+}
+
 /**
  * High-precision sleep until `targetPerfMs` (performance.now() timeline).
  * Uses setTimeout for the coarse part and short yields for the final ~5 ms so bit edges stay tight.
@@ -174,6 +210,51 @@ export class OpticalFlashDriver {
       await new Promise((r) => setTimeout(r, durationMs));
       await this.setTorchState(false);
       return true;
+    } finally {
+      await this.forceTorchOff();
+    }
+  }
+
+  async benchmarkTorch(cycles = 3) {
+    const res = await this.acquireTorch();
+    if (!res.supported) {
+      throw new Error('Rear LED torch is not supported by this browser.');
+    }
+
+    const totalCycles = Math.max(1, Math.floor(cycles));
+    const settleMs = 45;
+    const onTimes = [];
+    const offTimes = [];
+
+    try {
+      await this.forceTorchOff();
+
+      for (let i = 0; i < totalCycles; i++) {
+        await new Promise((r) => setTimeout(r, settleMs));
+        const tOnStart = performance.now();
+        await this.setTorchState(true);
+        onTimes.push(performance.now() - tOnStart);
+
+        await new Promise((r) => setTimeout(r, settleMs));
+        const tOffStart = performance.now();
+        await this.setTorchState(false);
+        offTimes.push(performance.now() - tOffStart);
+      }
+
+      const allTimes = [...onTimes, ...offTimes];
+      const medianOnMs = Number(median(onTimes).toFixed(1));
+      const medianOffMs = Number(median(offTimes).toFixed(1));
+      const medianToggleMs = Number(median(allTimes).toFixed(1));
+      const maxToggleMs = Number(Math.max(...allTimes).toFixed(1));
+
+      return {
+        cycles: totalCycles,
+        medianOnMs,
+        medianOffMs,
+        medianToggleMs,
+        maxToggleMs,
+        ...recommendBitPeriodFromLatency(medianToggleMs, maxToggleMs),
+      };
     } finally {
       await this.forceTorchOff();
     }

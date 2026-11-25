@@ -18,6 +18,8 @@ import {
   bitsToString,
 } from '../js/wop-protocol.js';
 import { analyzeTimezone } from '../js/timezone-utils.js';
+import { recommendBitPeriodFromLatency } from '../js/flash-driver.js';
+import { computeClockOffsetMs } from '../js/time-sync.js';
 
 test('ProtHeader matches 117 << 1 = 11101010', () => {
   assert.equal(bitsToString(encodeHeader()), '11101010');
@@ -226,4 +228,60 @@ test('Intl timezone analyzer matches known 2026 DST rules for EU, US, Australia,
   assert.equal(stJohns.hourShift, -3);
   assert.equal(stJohns.minuteShift, WOP.MINUTE_SHIFT.THIRTY);
   assert.equal(stJohns.hasDst, true);
+});
+
+test('recommendBitPeriodFromLatency handles fast, slow, and upper-capped LED latencies', () => {
+  // Fast Android LED within 30 ms budget
+  assert.deepEqual(recommendBitPeriodFromLatency(6, 10), {
+    recommendedBitPeriodMs: 30,
+    needsAdjustment: false,
+  });
+  // Exact fast boundary
+  assert.deepEqual(recommendBitPeriodFromLatency(16, 22), {
+    recommendedBitPeriodMs: 30,
+    needsAdjustment: false,
+  });
+
+  // Moderate/slow LED -> ceil((max(24 * 1.6, 32) + 12) / 5) * 5 = ceil(50.4 / 5) * 5 = 55
+  const slow = recommendBitPeriodFromLatency(24, 32);
+  assert.equal(slow.recommendedBitPeriodMs, 55);
+  assert.equal(slow.needsAdjustment, true);
+
+  // Latency spike exceeding max threshold alone -> ceil((max(12 * 1.6, 25) + 12) / 5) * 5 = 40
+  assert.deepEqual(recommendBitPeriodFromLatency(12, 25), {
+    recommendedBitPeriodMs: 40,
+    needsAdjustment: true,
+  });
+
+  // Very slow LED capped at 80 ms
+  assert.deepEqual(recommendBitPeriodFromLatency(50, 85), {
+    recommendedBitPeriodMs: 80,
+    needsAdjustment: true,
+  });
+});
+
+test('computeClockOffsetMs compensates for symmetric half-RTT and positive/negative drift', () => {
+  // Zero RTT, identical clocks
+  assert.deepEqual(
+    computeClockOffsetMs({ t0Ms: 1_000_000, t1Ms: 1_000_000, serverUtcMs: 1_000_000 }),
+    { offsetMs: 0, rttMs: 0 },
+  );
+
+  // Symmetric 120 ms RTT, server midpoint aligns with local clock -> 0 offset
+  assert.deepEqual(
+    computeClockOffsetMs({ t0Ms: 1_000_000, t1Ms: 1_000_120, serverUtcMs: 1_000_060 }),
+    { offsetMs: 0, rttMs: 120 },
+  );
+
+  // Device clock running slow by 350 ms (positive offset needed) with 80 ms RTT
+  assert.deepEqual(
+    computeClockOffsetMs({ t0Ms: 1_000_000, t1Ms: 1_000_080, serverUtcMs: 1_000_390 }),
+    { offsetMs: 350, rttMs: 80 },
+  );
+
+  // Device clock running fast by 420 ms (negative offset needed) with 100 ms RTT
+  assert.deepEqual(
+    computeClockOffsetMs({ t0Ms: 1_000_000, t1Ms: 1_000_100, serverUtcMs: 999_630 }),
+    { offsetMs: -420, rttMs: 100 },
+  );
 });

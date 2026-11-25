@@ -136,11 +136,69 @@ body {
   border-right: 1px solid rgba(197, 164, 103, 0.28);
 }
 
+.utc-top-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 2px;
+}
+
 .utc-label {
   font-size: 0.66rem;
   text-transform: uppercase;
   letter-spacing: 0.16em;
   color: #9ba8bc;
+}
+
+.sync-pill {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 7px;
+  border-radius: 2px;
+  border: 1px solid rgba(197, 164, 103, 0.3);
+  background: rgba(255, 255, 255, 0.04);
+  color: #b7c2d2;
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  letter-spacing: 0.04em;
+  line-height: 1.3;
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
+}
+
+.sync-pill:hover:not(:disabled) {
+  border-color: var(--brass-light);
+  color: #ffffff;
+  background: rgba(197, 164, 103, 0.14);
+}
+
+.sync-pill.synced {
+  border-color: rgba(197, 164, 103, 0.55);
+  color: var(--brass-light);
+}
+
+.sync-pill:disabled {
+  opacity: 0.72;
+  cursor: wait;
+}
+
+.sync-icon {
+  flex-shrink: 0;
+}
+
+.sync-pill.syncing .sync-icon {
+  animation: sync-spin 0.9s linear infinite;
+}
+
+@keyframes sync-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .utc-digits {
@@ -464,6 +522,50 @@ body {
   font-size: 0.8rem;
   color: var(--ink-muted);
   margin: 8px 0 0;
+}
+
+/* Swap T1 / T2 Bar */
+.tz-swap-bar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: -6px 0;
+}
+
+.tz-swap-rule {
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+.btn-swap {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 14px;
+  background: var(--surface);
+  color: var(--navy);
+  border: 1px solid var(--border-strong);
+  border-radius: 2px;
+  font-family: inherit;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+
+.btn-swap:hover:not(:disabled) {
+  border-color: var(--brass);
+  background: var(--brass-tint);
+  color: var(--navy);
+}
+
+.btn-swap:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
 }
 
 /* Timezone Panels (T1 & T2) */

@@ -13,15 +13,27 @@ import {
 } from './timezone-utils.js';
 import { OpticalFlashDriver, detectEnvironment } from './flash-driver.js';
 import { detectInitialLanguage, createTranslator } from './i18n.js';
+import { syncNetworkUtcOffset } from './time-sync.js';
+import {
+  unlockFeedbackAudio,
+  feedbackStart,
+  feedbackSuccess,
+  feedbackError,
+} from './feedback.js';
+
+const DEFAULT_SCREEN_BIT_PERIOD_MS = 50;
 
 const STORAGE_KEYS = {
   lang: 'wop_lang',
+  lightMode: 'wop_light_mode',
   homeTz: 'wop_home_tz',
   travelTz: 'wop_travel_tz',
   bitPeriod: 'wop_bit_period',
+  screenBitPeriod: 'wop_screen_bit_period',
   torchOffset: 'wop_torch_offset',
   screenCountdown: 'wop_screen_countdown',
   includeDst: 'wop_include_dst',
+  feedback: 'wop_feedback',
   dateRef: 'wop_date_ref',
 };
 
@@ -32,17 +44,23 @@ const allTimezones = getSupportedTimezones();
 const state = {
   lang: detectInitialLanguage(),
   t: null,
-  lightMode: 'torch',
+  lightMode: loadLightMode(),
   homeTz: loadString(STORAGE_KEYS.homeTz, getLocalSystemTimezone()),
   travelTz: loadString(STORAGE_KEYS.travelTz, pickDefaultTravelTz(getLocalSystemTimezone())),
   bitPeriodMs: loadNumber(STORAGE_KEYS.bitPeriod, WOP.DEFAULT_BIT_PERIOD_MS),
+  screenBitPeriodMs: loadNumber(STORAGE_KEYS.screenBitPeriod, DEFAULT_SCREEN_BIT_PERIOD_MS),
   torchOffsetMs: loadNumber(
     STORAGE_KEYS.torchOffset,
     env.ios ? WOP.APPLE_TORCH_OFFSET_MS : WOP.DEFAULT_TORCH_OFFSET_MS,
   ),
   screenCountdownSec: loadNumber(STORAGE_KEYS.screenCountdown, 2),
   includeDst: loadBool(STORAGE_KEYS.includeDst, true),
+  feedbackEnabled: loadBool(STORAGE_KEYS.feedback, true),
   dateRef: loadString(STORAGE_KEYS.dateRef, 'utc'),
+  utcOffsetMs: 0,
+  timeSyncInfo: null,
+  timeSyncBusy: false,
+  torchBench: null,
   customTimeEnabled: false,
   inspectMode: 'home',
   transmitting: false,
@@ -56,6 +74,8 @@ const el = {
   liveLedDot: document.getElementById('liveLedDot'),
   utcClock: document.getElementById('utcClock'),
   utcDate: document.getElementById('utcDate'),
+  btnSyncTime: document.getElementById('btnSyncTime'),
+  timeSyncText: document.getElementById('timeSyncText'),
   envBadge: document.getElementById('envBadge'),
   srcTorch: document.getElementById('srcTorch'),
   srcScreen: document.getElementById('srcScreen'),
@@ -64,9 +84,11 @@ const el = {
   btnInitTorch: document.getElementById('btnInitTorch'),
   btnTestBlink: document.getElementById('btnTestBlink'),
   btnReleaseCamera: document.getElementById('btnReleaseCamera'),
+  previewToggleWrap: document.getElementById('previewToggleWrap'),
   chkPreview: document.getElementById('chkPreview'),
   cameraPreviewWrap: document.getElementById('cameraPreviewWrap'),
   cameraVideo: document.getElementById('cameraVideo'),
+  btnSwapTz: document.getElementById('btnSwapTz'),
   homeTimeDisplay: document.getElementById('homeTimeDisplay'),
   homeDateDisplay: document.getElementById('homeDateDisplay'),
   homeSearch: document.getElementById('homeSearch'),
@@ -88,11 +110,14 @@ const el = {
   txProgressFill: document.getElementById('txProgressFill'),
   bitPeriodRange: document.getElementById('bitPeriodRange'),
   bitPeriodVal: document.getElementById('bitPeriodVal'),
+  screenBitPeriodRange: document.getElementById('screenBitPeriodRange'),
+  screenBitPeriodVal: document.getElementById('screenBitPeriodVal'),
   torchOffsetRange: document.getElementById('torchOffsetRange'),
   torchOffsetVal: document.getElementById('torchOffsetVal'),
   screenCountdownRange: document.getElementById('screenCountdownRange'),
   screenCountdownVal: document.getElementById('screenCountdownVal'),
   dateRefSelect: document.getElementById('dateRefSelect'),
+  chkFeedback: document.getElementById('chkFeedback'),
   chkIncludeDst: document.getElementById('chkIncludeDst'),
   chkCustomTime: document.getElementById('chkCustomTime'),
   customTimeWrap: document.getElementById('customTimeWrap'),
@@ -146,6 +171,26 @@ function saveStorage(key, value) {
   }
 }
 
+function loadLightMode() {
+  const saved = loadString(STORAGE_KEYS.lightMode, 'torch');
+  return saved === 'screen' ? 'screen' : 'torch';
+}
+
+function getCorrectedNowMs() {
+  return Date.now() + state.utcOffsetMs;
+}
+
+function getActiveBitPeriodMs(lightMode = state.lightMode) {
+  return lightMode === 'screen' ? state.screenBitPeriodMs : state.bitPeriodMs;
+}
+
+function setLightMode(mode) {
+  state.lightMode = mode === 'screen' ? 'screen' : 'torch';
+  saveStorage(STORAGE_KEYS.lightMode, state.lightMode);
+  updateTorchStatusUI();
+  updateInspector();
+}
+
 function pickDefaultTravelTz(homeTz) {
   if (homeTz === 'America/New_York') return 'Europe/Warsaw';
   if (homeTz === 'Europe/London') return 'America/New_York';
@@ -186,10 +231,76 @@ function applyLanguage(lang) {
     node.placeholder = state.t(node.dataset.i18nPlaceholder);
   });
 
+  updateTimeSyncUI();
   updateTorchStatusUI();
   updateTimezoneMeta('home');
   updateTimezoneMeta('travel');
   updateInspector();
+}
+
+// ---------- Network UTC Time Sync ----------
+
+function updateTimeSyncUI() {
+  if (!el.btnSyncTime || !el.timeSyncText) return;
+  el.btnSyncTime.disabled = state.timeSyncBusy;
+  el.btnSyncTime.classList.toggle('syncing', state.timeSyncBusy);
+
+  if (state.timeSyncBusy) {
+    el.btnSyncTime.classList.remove('synced');
+    el.timeSyncText.textContent = state.t('timeSyncSyncing');
+    el.btnSyncTime.title = state.t('timeSyncTooltip');
+    return;
+  }
+
+  const info = state.timeSyncInfo;
+  if (info && info.synced) {
+    el.btnSyncTime.classList.add('synced');
+    const offset = state.utcOffsetMs;
+    const sign = offset >= 0 ? '+' : '';
+    if (Math.abs(offset) < 10) {
+      el.timeSyncText.textContent = state.t('timeSyncOk');
+    } else {
+      el.timeSyncText.textContent = state.t('timeSyncOffset', {
+        sign,
+        ms: offset,
+      });
+    }
+    el.btnSyncTime.title = state.t('timeSyncTooltipSynced', {
+      source: info.source,
+      rtt: info.rttMs,
+      sign,
+      ms: offset,
+    });
+  } else {
+    el.btnSyncTime.classList.remove('synced');
+    el.timeSyncText.textContent = state.t('timeSyncDevice');
+    el.btnSyncTime.title = state.t('timeSyncTooltip');
+  }
+}
+
+async function runTimeSync() {
+  if (state.timeSyncBusy) return;
+  state.timeSyncBusy = true;
+  updateTimeSyncUI();
+  try {
+    const info = await syncNetworkUtcOffset();
+    state.timeSyncInfo = info;
+    state.utcOffsetMs = info.synced ? info.offsetMs : 0;
+  } catch {
+    state.timeSyncInfo = {
+      synced: false,
+      source: 'device',
+      precision: 'local',
+      offsetMs: 0,
+      rttMs: 0,
+    };
+    state.utcOffsetMs = 0;
+  } finally {
+    state.timeSyncBusy = false;
+    updateTimeSyncUI();
+    tickClocks();
+    updateInspector();
+  }
 }
 
 // ---------- Timezone Selectors ----------
@@ -249,35 +360,66 @@ function updateTimezoneMeta(which) {
 
 function updateTorchStatusUI() {
   el.torchStatusMsg.classList.remove('ok', 'warn');
+  const isScreen = state.lightMode === 'screen';
 
   if (!env.secureContext) {
     el.envBadge.textContent = 'HTTP';
-    el.torchStatusMsg.textContent = state.t('torchStatusInsecure');
-    el.torchStatusMsg.classList.add('warn');
   } else {
     el.envBadge.textContent = env.ios ? 'iOS · HTTPS' : env.mobile ? 'Mobile · HTTPS' : 'Desktop · HTTPS';
-    if (driver.torchSupported === true && driver.hasActiveCamera) {
-      el.torchStatusMsg.textContent = state.t('torchStatusReady');
-      el.torchStatusMsg.classList.add('ok');
-    } else if (driver.torchSupported === false) {
+  }
+
+  if (isScreen) {
+    if (driver.torchSupported === false) {
       el.torchStatusMsg.textContent = env.ios
         ? state.t('torchStatusIosWarning')
         : state.t('torchStatusUnsupported');
       el.torchStatusMsg.classList.add('warn');
-    } else if (env.ios) {
-      el.torchStatusMsg.textContent = state.t('torchStatusIosWarning');
-      el.torchStatusMsg.classList.add('warn');
-    } else if (!env.mobile && state.lightMode === 'screen') {
+    } else if (!env.mobile) {
       el.torchStatusMsg.textContent = state.t('torchStatusDesktop');
     } else {
-      el.torchStatusMsg.textContent = state.t('torchStatusChecking');
+      el.torchStatusMsg.textContent = state.t('torchStatusScreenActive');
     }
+  } else if (!env.secureContext) {
+    el.torchStatusMsg.textContent = state.t('torchStatusInsecure');
+    el.torchStatusMsg.classList.add('warn');
+  } else if (driver.torchSupported === true) {
+    if (state.torchBench) {
+      if (state.torchBench.needsAdjustment) {
+        el.torchStatusMsg.textContent = state.t('torchStatusBenchAdjusted', {
+          median: state.torchBench.medianToggleMs,
+          max: state.torchBench.maxToggleMs,
+          period: state.bitPeriodMs,
+        });
+        el.torchStatusMsg.classList.add('warn');
+      } else {
+        el.torchStatusMsg.textContent = state.t('torchStatusBenchOk', {
+          median: state.torchBench.medianToggleMs,
+          period: state.bitPeriodMs,
+        });
+        el.torchStatusMsg.classList.add('ok');
+      }
+    } else {
+      el.torchStatusMsg.textContent = state.t('torchStatusReady');
+      el.torchStatusMsg.classList.add('ok');
+    }
+  } else if (driver.torchSupported === false) {
+    el.torchStatusMsg.textContent = env.ios
+      ? state.t('torchStatusIosWarning')
+      : state.t('torchStatusUnsupported');
+    el.torchStatusMsg.classList.add('warn');
+  } else if (env.ios) {
+    el.torchStatusMsg.textContent = state.t('torchStatusIosWarning');
+    el.torchStatusMsg.classList.add('warn');
+  } else {
+    el.torchStatusMsg.textContent = state.t('torchStatusChecking');
   }
 
-  el.srcTorch.checked = state.lightMode === 'torch';
-  el.srcScreen.checked = state.lightMode === 'screen';
+  el.srcTorch.checked = !isScreen;
+  el.srcScreen.checked = isScreen;
+  el.btnInitTorch.hidden = isScreen;
+  el.previewToggleWrap.hidden = isScreen;
+  el.btnReleaseCamera.hidden = isScreen || !driver.hasActiveCamera;
   el.btnTestBlink.disabled = state.transmitting;
-  el.btnReleaseCamera.hidden = !driver.hasActiveCamera;
 
   updateCameraPreviewVisibility();
 }
@@ -297,26 +439,62 @@ async function handleInitTorch() {
     setTxStatus(state.t('statusPreparing'), 'active');
     const res = await driver.acquireTorch();
     if (!res.supported) {
+      state.torchBench = null;
+      el.chkPreview.checked = false;
       state.lightMode = 'screen';
+      saveStorage(STORAGE_KEYS.lightMode, state.lightMode);
       setTxStatus(state.t(env.ios ? 'torchStatusIosWarning' : 'torchStatusUnsupported'), 'error');
     } else {
       state.lightMode = 'torch';
-      await driver.testBlink(180);
-      setTxStatus(state.t('torchStatusReady'), 'done');
+      saveStorage(STORAGE_KEYS.lightMode, state.lightMode);
+      setTxStatus(state.t('torchStatusBenchmarking'), 'active');
+      const bench = await driver.benchmarkTorch(3);
+      state.torchBench = bench;
+      driver.torchSupported = true;
+
+      if (bench.needsAdjustment) {
+        state.bitPeriodMs = bench.recommendedBitPeriodMs;
+        el.bitPeriodRange.value = String(state.bitPeriodMs);
+        el.bitPeriodVal.textContent = `${state.bitPeriodMs} ms`;
+        saveStorage(STORAGE_KEYS.bitPeriod, state.bitPeriodMs);
+        setTxStatus(
+          state.t('torchStatusBenchAdjusted', {
+            median: bench.medianToggleMs,
+            max: bench.maxToggleMs,
+            period: state.bitPeriodMs,
+          }),
+          'done',
+        );
+      } else {
+        setTxStatus(
+          state.t('torchStatusBenchOk', {
+            median: bench.medianToggleMs,
+            period: state.bitPeriodMs,
+          }),
+          'done',
+        );
+      }
     }
   } catch (err) {
+    state.torchBench = null;
     driver.torchSupported = false;
+    el.chkPreview.checked = false;
     state.lightMode = 'screen';
+    saveStorage(STORAGE_KEYS.lightMode, state.lightMode);
     setTxStatus(state.t('statusError', { msg: err.message || String(err) }), 'error');
   } finally {
+    if (!el.chkPreview.checked || state.lightMode !== 'torch' || !driver.torchSupported) {
+      driver.releaseCamera();
+    }
     updateTorchStatusUI();
+    updateInspector();
   }
 }
 
 // ---------- Clocks ----------
 
 function tickClocks() {
-  const now = Date.now();
+  const now = getCorrectedNowMs();
   const d = new Date(now);
   el.utcClock.textContent = `${pad2(d.getUTCHours())}:${pad2(d.getUTCMinutes())}:${pad2(d.getUTCSeconds())}.${pad3(d.getUTCMilliseconds())}`;
   el.utcDate.textContent = `${d.getUTCFullYear()}-${pad2(d.getUTCMonth() + 1)}-${pad2(d.getUTCDate())}`;
@@ -339,7 +517,7 @@ function getEffectiveTargetMs() {
       return parsed;
     }
   }
-  return Date.now();
+  return getCorrectedNowMs();
 }
 
 function buildPreviewFrame(mode) {
@@ -411,7 +589,7 @@ function drawWaveform(txBits) {
 
 function updateInspector() {
   const frame = buildPreviewFrame(state.inspectMode);
-  const estSec = (((frame.txBits.length + 1) * state.bitPeriodMs) / 1000).toFixed(2);
+  const estSec = (((frame.txBits.length + 1) * getActiveBitPeriodMs()) / 1000).toFixed(2);
   el.inspectorSummary.textContent = state.t('inspectorBitsInfo', {
     raw: frame.rawBits.length,
     stuffed: frame.stuffedBits.length,
@@ -474,7 +652,8 @@ function setButtonsDisabled(disabled) {
   el.btnSendHome.disabled = disabled;
   el.btnSendTravel.disabled = disabled;
   el.btnInitTorch.disabled = disabled;
-  el.btnTestBlink.disabled = disabled || state.lightMode !== 'torch';
+  el.btnTestBlink.disabled = disabled;
+  if (el.btnSwapTz) el.btnSwapTz.disabled = disabled;
   el.btnCancelTx.hidden = !disabled;
 }
 
@@ -504,6 +683,8 @@ async function runCountdown(seconds, signal, onTick) {
 async function startTransmission(mode) {
   if (state.transmitting) return;
 
+  unlockFeedbackAudio();
+
   state.transmitting = true;
   state.abortController = new AbortController();
   const { signal } = state.abortController;
@@ -524,16 +705,22 @@ async function startTransmission(mode) {
         if (!res.supported) {
           activeLightMode = 'screen';
           state.lightMode = 'screen';
+          saveStorage(STORAGE_KEYS.lightMode, state.lightMode);
           updateTorchStatusUI();
+          updateInspector();
         }
       } catch (err) {
         driver.torchSupported = false;
         activeLightMode = 'screen';
         state.lightMode = 'screen';
+        saveStorage(STORAGE_KEYS.lightMode, state.lightMode);
         updateTorchStatusUI();
+        updateInspector();
         void err;
       }
     }
+
+    const activeBitPeriodMs = getActiveBitPeriodMs(activeLightMode);
 
     // 2. If screen flash mode, open fullscreen overlay and give countdown so watch can be positioned
     if (activeLightMode === 'screen') {
@@ -587,7 +774,7 @@ async function startTransmission(mode) {
       startDelayMs = 60;
     } else {
       const synced = buildAutoSyncedFrame({
-        nowMs: Date.now(),
+        nowMs: getCorrectedNowMs(),
         mode,
         timezone: {
           hourShift: tzInfo.hourShift,
@@ -595,7 +782,7 @@ async function startTransmission(mode) {
           hemisphere: tzInfo.hemisphere,
         },
         dst: dstData,
-        bitPeriodMs: state.bitPeriodMs,
+        bitPeriodMs: activeBitPeriodMs,
         dateRef: state.dateRef,
       });
       txBits = synced.frame.txBits;
@@ -608,9 +795,10 @@ async function startTransmission(mode) {
     }
 
     // 4. Transmit optical pulses!
+    let startFeedbackPlayed = false;
     const stats = await driver.transmit({
       txBits,
-      bitPeriodMs: state.bitPeriodMs,
+      bitPeriodMs: activeBitPeriodMs,
       offsetMs: activeLightMode === 'torch' ? state.torchOffsetMs : 0,
       startDelayMs,
       lightMode: activeLightMode,
@@ -623,12 +811,17 @@ async function startTransmission(mode) {
         }
       },
       onProgress: (sent, total) => {
+        if (!startFeedbackPlayed) {
+          startFeedbackPlayed = true;
+          feedbackStart(state.feedbackEnabled);
+        }
         const pct = Math.round((sent / total) * 100);
         setProgress(pct);
         setTxStatus(state.t('statusTransmitting', { sent, total, pct }), 'active');
       },
     });
 
+    feedbackSuccess(state.feedbackEnabled);
     setProgress(100);
     setTxStatus(
       state.t('statusDone', {
@@ -644,6 +837,7 @@ async function startTransmission(mode) {
       setTxStatus(state.t('statusCancelled'), 'idle');
       setProgress(0);
     } else {
+      feedbackError(state.feedbackEnabled);
       setTxStatus(state.t('statusError', { msg: err?.message || String(err) }), 'error');
     }
   } finally {
@@ -654,6 +848,8 @@ async function startTransmission(mode) {
     if (document.fullscreenElement === el.screenFlashOverlay && typeof document.exitFullscreen === 'function') {
       document.exitFullscreen().catch(() => {});
     }
+    el.chkPreview.checked = false;
+    driver.releaseCamera();
     state.transmitting = false;
     state.abortController = null;
     setButtonsDisabled(false);
@@ -667,6 +863,38 @@ function cancelTransmission() {
   }
 }
 
+function handleSwapTimezones() {
+  if (state.transmitting) return;
+  const prevHome = state.homeTz;
+  state.homeTz = state.travelTz;
+  state.travelTz = prevHome;
+
+  el.homeSearch.value = '';
+  el.travelSearch.value = '';
+  populateTimezoneSelect(el.homeTzSelect, '', state.homeTz);
+  populateTimezoneSelect(el.travelTzSelect, '', state.travelTz);
+
+  saveStorage(STORAGE_KEYS.homeTz, state.homeTz);
+  saveStorage(STORAGE_KEYS.travelTz, state.travelTz);
+
+  updateTimezoneMeta('home');
+  updateTimezoneMeta('travel');
+  tickClocks();
+  updateInspector();
+}
+
+function registerServiceWorker() {
+  if (!window.isSecureContext || !('serviceWorker' in navigator)) return;
+  const register = () => {
+    navigator.serviceWorker?.register('./sw.js').catch(() => {});
+  };
+  if (document.readyState === 'complete') {
+    register();
+  } else {
+    window.addEventListener('load', register, { once: true });
+  }
+}
+
 // ---------- Wiring & Initialization ----------
 
 function initControls() {
@@ -675,17 +903,22 @@ function initControls() {
     btn.addEventListener('click', () => applyLanguage(btn.dataset.lang));
   });
 
+  // Network UTC time sync trigger
+  el.btnSyncTime.addEventListener('click', () => {
+    runTimeSync();
+  });
+
   // Light source radios
   el.srcTorch.addEventListener('change', () => {
     if (el.srcTorch.checked) {
-      state.lightMode = 'torch';
-      updateTorchStatusUI();
+      setLightMode('torch');
     }
   });
   el.srcScreen.addEventListener('change', () => {
     if (el.srcScreen.checked) {
-      state.lightMode = 'screen';
-      updateTorchStatusUI();
+      el.chkPreview.checked = false;
+      driver.releaseCamera();
+      setLightMode('screen');
     }
   });
 
@@ -704,24 +937,37 @@ function initControls() {
     try {
       const ok = await driver.testBlink(200);
       if (!ok) {
-        state.lightMode = 'screen';
+        setLightMode('screen');
       }
-      updateTorchStatusUI();
     } catch (err) {
       setTxStatus(state.t('statusError', { msg: err.message || String(err) }), 'error');
+    } finally {
+      if (!el.chkPreview.checked) {
+        driver.releaseCamera();
+      }
+      updateTorchStatusUI();
     }
   });
   el.btnReleaseCamera.addEventListener('click', () => {
     driver.releaseCamera();
+    state.torchBench = null;
     el.chkPreview.checked = false;
     updateTorchStatusUI();
   });
   el.chkPreview.addEventListener('change', async () => {
-    if (el.chkPreview.checked && !driver.hasActiveCamera) {
-      await handleInitTorch();
+    if (el.chkPreview.checked) {
+      if (!driver.hasActiveCamera) {
+        await handleInitTorch();
+      }
+      updateCameraPreviewVisibility();
+    } else {
+      driver.releaseCamera();
+      updateTorchStatusUI();
     }
-    updateCameraPreviewVisibility();
   });
+
+  // Swap Home (T1) <-> Travel (T2)
+  el.btnSwapTz.addEventListener('click', handleSwapTimezones);
 
   // Timezone selectors + search
   populateTimezoneSelect(el.homeTzSelect, '', state.homeTz);
@@ -774,6 +1020,16 @@ function initControls() {
     state.bitPeriodMs = Number(el.bitPeriodRange.value);
     el.bitPeriodVal.textContent = `${state.bitPeriodMs} ms`;
     saveStorage(STORAGE_KEYS.bitPeriod, state.bitPeriodMs);
+    updateTorchStatusUI();
+    updateInspector();
+  });
+
+  el.screenBitPeriodRange.value = String(state.screenBitPeriodMs);
+  el.screenBitPeriodVal.textContent = `${state.screenBitPeriodMs} ms`;
+  el.screenBitPeriodRange.addEventListener('input', () => {
+    state.screenBitPeriodMs = Number(el.screenBitPeriodRange.value);
+    el.screenBitPeriodVal.textContent = `${state.screenBitPeriodMs} ms`;
+    saveStorage(STORAGE_KEYS.screenBitPeriod, state.screenBitPeriodMs);
     updateInspector();
   });
 
@@ -800,6 +1056,12 @@ function initControls() {
     updateInspector();
   });
 
+  el.chkFeedback.checked = state.feedbackEnabled;
+  el.chkFeedback.addEventListener('change', () => {
+    state.feedbackEnabled = el.chkFeedback.checked;
+    saveStorage(STORAGE_KEYS.feedback, state.feedbackEnabled);
+  });
+
   el.chkIncludeDst.checked = state.includeDst;
   el.chkIncludeDst.addEventListener('change', () => {
     state.includeDst = el.chkIncludeDst.checked;
@@ -811,7 +1073,7 @@ function initControls() {
     state.customTimeEnabled = el.chkCustomTime.checked;
     el.customTimeWrap.hidden = !state.customTimeEnabled;
     if (state.customTimeEnabled && !el.customUtcInput.value) {
-      const now = new Date();
+      const now = new Date(getCorrectedNowMs());
       el.customUtcInput.value = `${now.getUTCFullYear()}-${pad2(now.getUTCMonth() + 1)}-${pad2(now.getUTCDate())}T${pad2(now.getUTCHours())}:${pad2(now.getUTCMinutes())}:${pad2(now.getUTCSeconds())}`;
     }
     updateInspector();
@@ -820,28 +1082,36 @@ function initControls() {
 
   el.btnResetDefaults.addEventListener('click', () => {
     state.bitPeriodMs = WOP.DEFAULT_BIT_PERIOD_MS;
+    state.screenBitPeriodMs = DEFAULT_SCREEN_BIT_PERIOD_MS;
     state.torchOffsetMs = env.ios ? WOP.APPLE_TORCH_OFFSET_MS : WOP.DEFAULT_TORCH_OFFSET_MS;
     state.screenCountdownSec = 2;
     state.includeDst = true;
+    state.feedbackEnabled = true;
     state.dateRef = 'utc';
     state.customTimeEnabled = false;
 
     el.bitPeriodRange.value = String(state.bitPeriodMs);
     el.bitPeriodVal.textContent = `${state.bitPeriodMs} ms`;
+    el.screenBitPeriodRange.value = String(state.screenBitPeriodMs);
+    el.screenBitPeriodVal.textContent = `${state.screenBitPeriodMs} ms`;
     el.torchOffsetRange.value = String(state.torchOffsetMs);
     el.torchOffsetVal.textContent = `${state.torchOffsetMs} ms`;
     el.screenCountdownRange.value = String(state.screenCountdownSec);
     el.screenCountdownVal.textContent = `${state.screenCountdownSec} s`;
     el.dateRefSelect.value = state.dateRef;
+    el.chkFeedback.checked = true;
     el.chkIncludeDst.checked = true;
     el.chkCustomTime.checked = false;
     el.customTimeWrap.hidden = true;
 
     saveStorage(STORAGE_KEYS.bitPeriod, state.bitPeriodMs);
+    saveStorage(STORAGE_KEYS.screenBitPeriod, state.screenBitPeriodMs);
     saveStorage(STORAGE_KEYS.torchOffset, state.torchOffsetMs);
     saveStorage(STORAGE_KEYS.screenCountdown, state.screenCountdownSec);
+    saveStorage(STORAGE_KEYS.feedback, state.feedbackEnabled);
     saveStorage(STORAGE_KEYS.includeDst, state.includeDst);
     saveStorage(STORAGE_KEYS.dateRef, state.dateRef);
+    updateTorchStatusUI();
     updateInspector();
   });
 
@@ -862,12 +1132,21 @@ function initControls() {
   });
 
   // Clean up camera if tab is closed/hidden
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden && !state.transmitting) {
+      el.chkPreview.checked = false;
+      driver.releaseCamera();
+      updateTorchStatusUI();
+    }
+  });
   window.addEventListener('pagehide', () => driver.releaseCamera());
 }
 
 initControls();
 applyLanguage(state.lang);
 tickClocks();
+registerServiceWorker();
+runTimeSync();
 setInterval(tickClocks, 100);
 setInterval(() => {
   const details = document.getElementById('advancedDetails');

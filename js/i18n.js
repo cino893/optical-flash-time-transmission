@@ -5,7 +5,13 @@ export const TRANSLATIONS = {
     compatTitle: 'Compatibility Notice',
     compatBody:
       'Currently this application supports <strong>Longines Conquest V.H.P. GMT</strong> (Flash Setting) only. It is unknown whether it will work with other watches.',
-    utcClockLabel: 'Device UTC',
+    utcClockLabel: 'UTC Clock',
+    timeSyncSyncing: 'Syncing...',
+    timeSyncOk: 'NTP OK',
+    timeSyncOffset: 'NTP {sign}{ms} ms',
+    timeSyncDevice: 'Device clock',
+    timeSyncTooltip: 'Synchronize UTC clock offset over network',
+    timeSyncTooltipSynced: 'Synced via {source} (RTT {rtt} ms, offset {sign}{ms} ms) — tap to refresh',
     lightSourceTitle: 'Light Source',
     sourceTorch: 'Rear LED Flashlight',
     sourceTorchBadge: 'Default',
@@ -14,8 +20,14 @@ export const TRANSLATIONS = {
     sourceScreenHint: 'Works on iOS Safari, desktop monitors & laptops (pure black/white)',
     torchStatusDesktop:
       'Desktop browser detected — Screen / Monitor Flash mode is selected. Set monitor brightness to 100% and hold the watch dial close to the flashing white area.',
+    torchStatusScreenActive:
+      'Screen / Monitor Flash mode selected. Set screen brightness to 100% and hold the watch dial close to the flashing area.',
     torchStatusChecking: 'Tap "Enable Camera / LED" or Transmit to check rear LED flashlight support.',
     torchStatusReady: 'Rear LED flashlight is ready.',
+    torchStatusBenchmarking: 'Measuring rear LED toggle latency...',
+    torchStatusBenchOk: 'Rear LED ready — toggle ~{median} ms ({period} ms bit period OK).',
+    torchStatusBenchAdjusted:
+      'Rear LED ready — slow HAL detected (~{median} ms, max {max} ms). Bit period auto-adjusted to {period} ms.',
     torchStatusIosWarning:
       'iOS Safari typically blocks web pages from controlling the rear LED flashlight. Tap Transmit to try LED or automatically fall back to Screen / Monitor Flash (set brightness to 100%).',
     torchStatusUnsupported:
@@ -29,6 +41,7 @@ export const TRANSLATIONS = {
     previewHint: 'Aim the rear LED (next to the camera lens) at the sensor hidden inside the "1" of "12" on the watch dial.',
     homeTitle: 'Home Time (T1)',
     travelTitle: 'Travel Time (T2)',
+    btnSwapTz: 'Swap Home ⇄ Travel',
     tzSearchPlaceholder: 'Search timezone (e.g. Warsaw, New York, Tokyo)...',
     tzLabel: 'Timezone',
     stdOffsetLabel: 'Standard offset',
@@ -56,10 +69,13 @@ export const TRANSLATIONS = {
     step4:
       'Tap <strong>Transmit</strong> and keep the watch steady for ~2–4 seconds until the hands move to the new time.',
     advancedTitle: 'Calibration & Protocol Inspector',
-    bitPeriodLabel: 'Bit period (ms)',
-    bitPeriodHelp: 'Default is 30 ms (Longines standard). Valid WOP range: 10–100 ms. On 60 Hz monitors, 33–50 ms can improve contrast.',
+    bitPeriodLabel: 'Rear LED bit period (ms)',
+    bitPeriodHelp: 'Default is 30 ms (Longines standard). Valid WOP range: 15–80 ms. Auto-adjusted if slow LED hardware is detected.',
+    screenBitPeriodLabel: 'Screen / Monitor bit period (ms)',
+    screenBitPeriodHelp: 'Default is 50 ms (~3 frames on 60 Hz LCD monitors) for crisp black/white contrast. Valid range: 20–100 ms.',
     torchOffsetLabel: 'Torch turn-on offset (ms)',
     torchOffsetHelp: 'Fires 0→1 rising edges earlier to compensate for LED turn-on lag (0 ms Android, 8 ms Apple).',
+    feedbackLabel: 'Audio & vibration cue on start/finish',
     includeDstLabel: 'Include DST Summer/Winter message (opcodes 59/60)',
     dateRefLabel: 'Date reference',
     dateRefUtc: 'UTC date (recommended)',
@@ -87,7 +103,13 @@ export const TRANSLATIONS = {
     compatTitle: 'Informacja o kompatybilności',
     compatBody:
       'Na razie aplikacja wspiera wyłącznie zegarek <strong>Longines Conquest V.H.P. GMT</strong> (Flash Setting) i nie wiadomo, czy będzie działać z innymi zegarkami.',
-    utcClockLabel: 'Czas UTC urządzenia',
+    utcClockLabel: 'Czas UTC',
+    timeSyncSyncing: 'Synchronizacja...',
+    timeSyncOk: 'NTP OK',
+    timeSyncOffset: 'NTP {sign}{ms} ms',
+    timeSyncDevice: 'Zegar urządzenia',
+    timeSyncTooltip: 'Synchronizuj odchylenie czasu UTC przez sieć',
+    timeSyncTooltipSynced: 'Zsynchronizowano przez {source} (RTT {rtt} ms, odchylenie {sign}{ms} ms) — kliknij, aby odświeżyć',
     lightSourceTitle: 'Źródło światła',
     sourceTorch: 'Latarka LED telefonu (tylna)',
     sourceTorchBadge: 'Domyślne',
@@ -96,8 +118,14 @@ export const TRANSLATIONS = {
     sourceScreenHint: 'Działa na iOS Safari, monitorach PC i laptopach (miganie biało-czarne)',
     torchStatusDesktop:
       'Wykryto przeglądarkę desktopową — wybrano tryb błysku ekranu / monitora. Ustaw jasność monitora na 100% i przyłóż tarczę zegarka blisko migającego białego pola.',
+    torchStatusScreenActive:
+      'Wybrano tryb błysku ekranu / monitora. Ustaw jasność ekranu na 100% i przyłóż tarczę zegarka blisko migającego pola.',
     torchStatusChecking: 'Kliknij „Włącz kamerę / LED” lub „Wyślij”, aby sprawdzić dostęp do tylnej latarki LED.',
     torchStatusReady: 'Tylna latarka LED jest gotowa.',
+    torchStatusBenchmarking: 'Pomiar czasu przełączania tylnej latarki LED...',
+    torchStatusBenchOk: 'Tylna latarka LED gotowa — czas przełączania ~{median} ms (okres {period} ms OK).',
+    torchStatusBenchAdjusted:
+      'Tylna latarka LED gotowa — wykryto wolne przełączanie HAL (~{median} ms, maks. {max} ms). Okres bitu automatycznie zmieniono na {period} ms.',
     torchStatusIosWarning:
       'Safari na iOS zwykle blokuje dostęp stron WWW do tylnej latarki LED. Kliknij Wyślij, aby spróbować LED lub automatycznie przejść na błysk ekranu (ustaw jasność na 100%).',
     torchStatusUnsupported:
@@ -111,6 +139,7 @@ export const TRANSLATIONS = {
     previewHint: 'Skieruj tylną diodę LED (obok obiektywu) na czujnik ukryty w cyfrze „1” z „12” na tarczy zegarka.',
     homeTitle: 'Czas domowy (T1)',
     travelTitle: 'Czas podróży (T2)',
+    btnSwapTz: 'Zamień Dom ⇄ Podróż',
     tzSearchPlaceholder: 'Szukaj strefy czasowej (np. Warsaw, New York, Tokyo)...',
     tzLabel: 'Strefa czasowa',
     stdOffsetLabel: 'Przesunięcie bazowe',
@@ -138,10 +167,13 @@ export const TRANSLATIONS = {
     step4:
       'Kliknij <strong>Wyślij</strong> i utrzymuj zegarek nieruchomo przez ok. 2–4 sekundy, aż transmisja się zakończy i wskazówki przestawią się na właściwą godzinę.',
     advancedTitle: 'Kalibracja i podgląd ramki protokołu',
-    bitPeriodLabel: 'Okres bitu (ms)',
-    bitPeriodHelp: 'Domyślnie 30 ms (standard Longines). Dozwolony zakres WOP: 10–100 ms. Na monitorach 60 Hz warto sprawdzić 33–50 ms.',
+    bitPeriodLabel: 'Okres bitu LED (ms)',
+    bitPeriodHelp: 'Domyślnie 30 ms (standard Longines). Zakres: 15–80 ms. Automatycznie zwiększany przy wolnym sterowniku LED.',
+    screenBitPeriodLabel: 'Okres bitu ekranu / monitora (ms)',
+    screenBitPeriodHelp: 'Domyślnie 50 ms (~3 klatki na monitorze 60 Hz) dla wyraźnego kontrastu czerni i bieli. Zakres: 20–100 ms.',
     torchOffsetLabel: 'Kompensacja włączenia LED (ms)',
     torchOffsetHelp: 'Wcześniejsze wyzwalanie zboczy 0→1 dla kompensacji opóźnienia diody (0 ms Android, 8 ms Apple).',
+    feedbackLabel: 'Dźwięk i wibracja na start/koniec transmisji',
     includeDstLabel: 'Dołącz wiadomość zmiany czasu Lato/Zima (opcode 59/60)',
     dateRefLabel: 'Źródło daty',
     dateRefUtc: 'Data UTC (zalecane)',
