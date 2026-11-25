@@ -1,10 +1,13 @@
-const CACHE_NAME = 'wop-flash-sync-v1';
+const CACHE_NAME = 'wop-flash-sync-v2';
 const APP_ASSETS = [
   './',
   './index.html',
   './styles.css',
   './manifest.webmanifest',
+  './favicon.ico',
   './assets/icon.svg',
+  './assets/icon-192.png',
+  './assets/apple-touch-icon.png',
   './js/app.js',
   './js/wop-protocol.js',
   './js/timezone-utils.js',
