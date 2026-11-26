@@ -3,23 +3,23 @@ import {
   buildWopFrame,
   buildAutoSyncedFrame,
   bitsToString,
-} from './wop-protocol.js?v=8';
+} from './wop-protocol.js?v=9';
 import {
   analyzeTimezone,
   getSupportedTimezones,
   getLocalSystemTimezone,
   getLocalParts,
   formatUtcOffset,
-} from './timezone-utils.js?v=8';
-import { OpticalFlashDriver, detectEnvironment, classifyCameraError } from './flash-driver.js?v=8';
-import { detectInitialLanguage, createTranslator } from './i18n.js?v=8';
-import { syncNetworkUtcOffset } from './time-sync.js?v=8';
+} from './timezone-utils.js?v=9';
+import { OpticalFlashDriver, detectEnvironment, classifyCameraError } from './flash-driver.js?v=9';
+import { detectInitialLanguage, createTranslator } from './i18n.js?v=9';
+import { syncNetworkUtcOffset } from './time-sync.js?v=9';
 import {
   unlockFeedbackAudio,
   feedbackStart,
   feedbackSuccess,
   feedbackError,
-} from './feedback.js?v=8';
+} from './feedback.js?v=9';
 
 const DEFAULT_SCREEN_BIT_PERIOD_MS = 50;
 
@@ -42,19 +42,38 @@ const env = detectEnvironment();
 const driver = new OpticalFlashDriver();
 const allTimezones = getSupportedTimezones();
 
+const clampInt = (val, min, max) => Math.max(min, Math.min(max, Math.round(val)));
+const getSafeOffsetLimit = (bitPeriodMs) =>
+  Math.min(WOP.MAX_OFFSET_MS, Math.max(0, Math.floor(bitPeriodMs / 2)));
+
+const initialBitPeriodMs = clampInt(
+  loadNumber(STORAGE_KEYS.bitPeriod, WOP.DEFAULT_BIT_PERIOD_MS),
+  WOP.MIN_BIT_PERIOD_MS,
+  WOP.MAX_BIT_PERIOD_MS,
+);
+const initialOffsetLimit = getSafeOffsetLimit(initialBitPeriodMs);
+
 const state = {
   lang: detectInitialLanguage(),
   t: null,
   lightMode: loadLightMode(),
   homeTz: loadString(STORAGE_KEYS.homeTz, getLocalSystemTimezone()),
   travelTz: loadString(STORAGE_KEYS.travelTz, pickDefaultTravelTz(getLocalSystemTimezone())),
-  bitPeriodMs: loadNumber(STORAGE_KEYS.bitPeriod, WOP.DEFAULT_BIT_PERIOD_MS),
-  screenBitPeriodMs: loadNumber(STORAGE_KEYS.screenBitPeriod, DEFAULT_SCREEN_BIT_PERIOD_MS),
-  torchOffsetMs: loadNumber(
-    STORAGE_KEYS.torchOffset,
-    env.ios ? WOP.APPLE_TORCH_OFFSET_MS : WOP.DEFAULT_TORCH_OFFSET_MS,
+  bitPeriodMs: initialBitPeriodMs,
+  screenBitPeriodMs: clampInt(
+    loadNumber(STORAGE_KEYS.screenBitPeriod, DEFAULT_SCREEN_BIT_PERIOD_MS),
+    WOP.MIN_BIT_PERIOD_MS,
+    WOP.MAX_BIT_PERIOD_MS,
   ),
-  screenCountdownSec: loadNumber(STORAGE_KEYS.screenCountdown, 2),
+  torchOffsetMs: clampInt(
+    loadNumber(
+      STORAGE_KEYS.torchOffset,
+      env.ios ? WOP.APPLE_TORCH_OFFSET_MS : WOP.DEFAULT_TORCH_OFFSET_MS,
+    ),
+    Math.max(-20, -initialOffsetLimit),
+    initialOffsetLimit,
+  ),
+  screenCountdownSec: clampInt(loadNumber(STORAGE_KEYS.screenCountdown, 2), 0, 10),
   txDurationComp: loadBool(STORAGE_KEYS.txDurationComp, true),
   includeDst: loadBool(STORAGE_KEYS.includeDst, true),
   feedbackEnabled: loadBool(STORAGE_KEYS.feedback, true),
@@ -64,6 +83,8 @@ const state = {
   timeSyncBusy: false,
   torchBench: null,
   cameraErrorKind: null,
+  cameraBusy: false,
+  screenTestBlinkTimer: null,
   customTimeEnabled: false,
   inspectMode: 'home',
   transmitting: false,
@@ -529,7 +550,26 @@ function updateCameraPreviewVisibility() {
   }
 }
 
+function applyTorchOffsetBounds() {
+  const limit = getSafeOffsetLimit(state.bitPeriodMs);
+  const minOff = Math.max(-20, -limit);
+  const maxOff = limit;
+  el.torchOffsetRange.min = String(minOff);
+  el.torchOffsetRange.max = String(maxOff);
+  el.torchOffsetNum.min = String(minOff);
+  el.torchOffsetNum.max = String(maxOff);
+  const clamped = clampInt(state.torchOffsetMs, minOff, maxOff);
+  if (clamped !== state.torchOffsetMs) {
+    state.torchOffsetMs = clamped;
+    saveStorage(STORAGE_KEYS.torchOffset, clamped);
+  }
+  el.torchOffsetRange.value = String(state.torchOffsetMs);
+  el.torchOffsetNum.value = String(state.torchOffsetMs);
+}
+
 async function handleInitTorch() {
+  if (state.transmitting || state.cameraBusy) return;
+  setCameraBusy(true);
   try {
     setTxStatus(state.t('statusPreparing'), 'active');
     const res = await driver.acquireTorch();
@@ -552,10 +592,15 @@ async function handleInitTorch() {
       driver.torchSupported = true;
 
       if (bench.needsAdjustment) {
-        state.bitPeriodMs = bench.recommendedBitPeriodMs;
+        state.bitPeriodMs = clampInt(
+          bench.recommendedBitPeriodMs,
+          WOP.MIN_BIT_PERIOD_MS,
+          WOP.MAX_BIT_PERIOD_MS,
+        );
         el.bitPeriodRange.value = String(state.bitPeriodMs);
         el.bitPeriodNum.value = String(state.bitPeriodMs);
         saveStorage(STORAGE_KEYS.bitPeriod, state.bitPeriodMs);
+        applyTorchOffsetBounds();
         setTxStatus(
           state.t('torchStatusBenchAdjusted', {
             median: bench.medianToggleMs,
@@ -575,6 +620,9 @@ async function handleInitTorch() {
       }
     }
   } catch (err) {
+    if (err?.name === 'AbortError') {
+      return;
+    }
     state.torchBench = null;
     const kind = err?.cameraErrorKind || classifyCameraError(err);
     state.cameraErrorKind = kind;
@@ -591,6 +639,7 @@ async function handleInitTorch() {
     if (!el.chkPreview.checked || state.lightMode !== 'torch' || !driver.torchSupported) {
       driver.releaseCamera();
     }
+    setCameraBusy(false);
     updateTorchStatusUI();
     updateInspector();
   }
@@ -599,6 +648,7 @@ async function handleInitTorch() {
 // ---------- Clocks ----------
 
 function tickClocks() {
+  if (state.transmitting) return;
   const now = getCorrectedNowMs();
   const d = new Date(now);
   el.utcClock.textContent = `${pad2(d.getUTCHours())}:${pad2(d.getUTCMinutes())}:${pad2(d.getUTCSeconds())}.${pad3(d.getUTCMilliseconds())}`;
@@ -625,15 +675,25 @@ function getEffectiveTargetMs() {
   return getCorrectedNowMs();
 }
 
+function getFrameDateParts(utcMs, tzId) {
+  if (state.dateRef === 'local') {
+    const p = getLocalParts(utcMs, tzId);
+    return { year: p.year % 100, month: p.month, day: p.day };
+  }
+  const d = new Date(utcMs);
+  return {
+    year: d.getUTCFullYear() % 100,
+    month: d.getUTCMonth() + 1,
+    day: d.getUTCDate(),
+  };
+}
+
 function buildPreviewFrame(mode) {
   const tzId = mode === 'home' ? state.homeTz : state.travelTz;
   const tzInfo = getTzAnalysis(tzId);
   const nowMs = getEffectiveTargetMs();
   const d = new Date(nowMs);
-  const dateObj =
-    state.dateRef === 'local'
-      ? { year: d.getFullYear() % 100, month: d.getMonth() + 1, day: d.getDate() }
-      : { year: d.getUTCFullYear() % 100, month: d.getUTCMonth() + 1, day: d.getUTCDate() };
+  const dateObj = getFrameDateParts(nowMs, tzId);
 
   return buildWopFrame({
     mode,
@@ -853,14 +913,31 @@ function setProgress(pct) {
   }
 }
 
-function setButtonsDisabled(disabled) {
-  el.btnSendHome.disabled = disabled;
-  el.btnSendTravel.disabled = disabled;
-  el.btnInitTorch.disabled = disabled;
-  el.btnTestBlink.disabled = disabled;
-  if (el.btnSwitchToScreen) el.btnSwitchToScreen.disabled = disabled;
-  if (el.btnSwapTz) el.btnSwapTz.disabled = disabled;
-  el.btnCancelTx.hidden = !disabled;
+function syncControlsDisabled() {
+  const busy = state.transmitting || state.cameraBusy;
+  el.btnSendHome.disabled = busy;
+  el.btnSendTravel.disabled = busy;
+  el.btnInitTorch.disabled = busy;
+  el.btnTestBlink.disabled = busy;
+  el.btnReleaseCamera.disabled = busy;
+  el.chkPreview.disabled = busy;
+  el.srcTorch.disabled = busy;
+  el.srcScreen.disabled = busy;
+  if (el.btnSwitchToScreen) el.btnSwitchToScreen.disabled = busy;
+  if (el.btnSwapTz) el.btnSwapTz.disabled = busy;
+  el.btnCancelTx.hidden = !state.transmitting;
+}
+
+function setCameraBusy(busy) {
+  state.cameraBusy = Boolean(busy);
+  syncControlsDisabled();
+}
+
+function clearScreenTestBlinkTimer() {
+  if (state.screenTestBlinkTimer !== null) {
+    clearTimeout(state.screenTestBlinkTimer);
+    state.screenTestBlinkTimer = null;
+  }
 }
 
 function formatUtcHms(ms) {
@@ -887,14 +964,15 @@ async function runCountdown(seconds, signal, onTick) {
 }
 
 async function startTransmission(mode) {
-  if (state.transmitting) return;
+  if (state.transmitting || state.cameraBusy) return;
 
+  clearScreenTestBlinkTimer();
   unlockFeedbackAudio();
 
   state.transmitting = true;
   state.abortController = new AbortController();
   const { signal } = state.abortController;
-  setButtonsDisabled(true);
+  syncControlsDisabled();
   setProgress(0);
   showToast({
     kind: 'active',
@@ -948,7 +1026,11 @@ async function startTransmission(mode) {
       }
     }
 
-    const activeBitPeriodMs = getActiveBitPeriodMs(activeLightMode);
+    const activeBitPeriodMs = clampInt(
+      getActiveBitPeriodMs(activeLightMode),
+      WOP.MIN_BIT_PERIOD_MS,
+      WOP.MAX_BIT_PERIOD_MS,
+    );
 
     // 2. If screen flash mode, open fullscreen overlay and give countdown so watch can be positioned
     if (activeLightMode === 'screen') {
@@ -968,10 +1050,21 @@ async function startTransmission(mode) {
       el.screenFlashPad.classList.add('tx-active');
     }
 
+    // Complete async hardware/wake-lock setup BEFORE capturing UTC timestamp for alignment
+    if (activeLightMode === 'torch') {
+      await driver.forceTorchOff();
+    }
+    await driver.requestWakeLock();
+
+    if (signal.aborted) {
+      throw new DOMException('Transmission aborted', 'AbortError');
+    }
+
     // 3. Build frame right before sending for exact UTC second synchronization
     let txBits;
     let startDelayMs = 0;
     let targetUtcMs;
+    let transmitBitPeriodMs = activeBitPeriodMs;
 
     if (state.customTimeEnabled && el.customUtcInput.value) {
       const parsed = Date.parse(`${el.customUtcInput.value}Z`);
@@ -992,11 +1085,7 @@ async function startTransmission(mode) {
           minute: d.getUTCMinutes(),
           second: d.getUTCSeconds(),
         },
-        date: {
-          year: d.getUTCFullYear() % 100,
-          month: d.getUTCMonth() + 1,
-          day: d.getUTCDate(),
-        },
+        date: getFrameDateParts(parsed, tzId),
         dst: dstData,
       });
       txBits = frame.txBits;
@@ -1013,11 +1102,13 @@ async function startTransmission(mode) {
         dst: dstData,
         bitPeriodMs: activeBitPeriodMs,
         dateRef: state.dateRef,
+        getDateParts: (ms) => getFrameDateParts(ms, tzId),
         compensateDuration: state.txDurationComp,
       });
       txBits = synced.frame.txBits;
       startDelayMs = synced.startDelayMs;
       targetUtcMs = synced.targetUtcMs;
+      transmitBitPeriodMs = synced.bitPeriodMs;
     }
 
     if (startDelayMs > 40) {
@@ -1029,7 +1120,7 @@ async function startTransmission(mode) {
     let startFeedbackPlayed = false;
     const stats = await driver.transmit({
       txBits,
-      bitPeriodMs: activeBitPeriodMs,
+      bitPeriodMs: transmitBitPeriodMs,
       offsetMs: activeLightMode === 'torch' ? state.torchOffsetMs : 0,
       startDelayMs,
       lightMode: activeLightMode,
@@ -1049,10 +1140,12 @@ async function startTransmission(mode) {
           startFeedbackPlayed = true;
           feedbackStart(state.feedbackEnabled);
         }
-        const pct = Math.round((sent / total) * 100);
-        setProgress(pct);
-        setTxStatus(state.t('statusTransmitting', { sent, total, pct }), 'active');
-        updateToastActive('statusTransmitting', { sent, total, pct });
+        if (sent === 1 || sent === total || sent % 4 === 0) {
+          const pct = Math.round((sent / total) * 100);
+          setProgress(pct);
+          setTxStatus(state.t('statusTransmitting', { sent, total, pct }), 'active');
+          updateToastActive('statusTransmitting', { sent, total, pct });
+        }
       },
     });
 
@@ -1076,7 +1169,7 @@ async function startTransmission(mode) {
       dur: stats.actualDurationMs,
     });
   } catch (err) {
-    if (err && err.name === 'AbortError') {
+    if (signal.aborted || (err && err.name === 'AbortError')) {
       setTxStatus(state.t('statusCancelled'), 'idle');
       setProgress(0);
       hideToast();
@@ -1106,12 +1199,14 @@ async function startTransmission(mode) {
     driver.releaseCamera();
     state.transmitting = false;
     state.abortController = null;
-    setButtonsDisabled(false);
+    syncControlsDisabled();
     updateTorchStatusUI();
+    tickClocks();
   }
 }
 
 function cancelTransmission() {
+  clearScreenTestBlinkTimer();
   if (state.abortController) {
     state.abortController.abort();
   }
@@ -1195,16 +1290,21 @@ function initControls() {
 
   el.btnInitTorch.addEventListener('click', handleInitTorch);
   el.btnTestBlink.addEventListener('click', async () => {
-    if (state.transmitting) return;
+    if (state.transmitting || state.cameraBusy) return;
     if (state.lightMode === 'screen') {
+      clearScreenTestBlinkTimer();
       el.screenFlashOverlay.hidden = false;
       el.screenFlashPad.classList.add('tx-active', 'lit');
-      setTimeout(() => {
-        el.screenFlashPad.classList.remove('lit', 'tx-active');
-        el.screenFlashOverlay.hidden = true;
+      state.screenTestBlinkTimer = setTimeout(() => {
+        state.screenTestBlinkTimer = null;
+        if (!state.transmitting) {
+          el.screenFlashPad.classList.remove('lit', 'tx-active');
+          el.screenFlashOverlay.hidden = true;
+        }
       }, 320);
       return;
     }
+    setCameraBusy(true);
     try {
       const ok = await driver.testBlink(200);
       if (!ok) {
@@ -1221,6 +1321,9 @@ function initControls() {
         state.cameraErrorKind = null;
       }
     } catch (err) {
+      if (err?.name === 'AbortError') {
+        return;
+      }
       const kind = err?.cameraErrorKind || classifyCameraError(err);
       state.cameraErrorKind = kind;
       el.chkPreview.checked = false;
@@ -1236,16 +1339,22 @@ function initControls() {
       if (!el.chkPreview.checked) {
         driver.releaseCamera();
       }
+      setCameraBusy(false);
       updateTorchStatusUI();
     }
   });
   el.btnReleaseCamera.addEventListener('click', () => {
+    if (state.transmitting || state.cameraBusy) return;
     driver.releaseCamera();
     state.torchBench = null;
     el.chkPreview.checked = false;
     updateTorchStatusUI();
   });
   el.chkPreview.addEventListener('change', async () => {
+    if (state.transmitting || state.cameraBusy) {
+      el.chkPreview.checked = false;
+      return;
+    }
     if (el.chkPreview.checked) {
       if (!driver.hasActiveCamera) {
         await handleInitTorch();
@@ -1322,17 +1431,19 @@ function initControls() {
   }
 
   // Calibration controls (two-way synced slider + numeric input)
-  function bindRangeNumberPair({ rangeEl, numEl, min, max, initialValue, onCommit }) {
+  function bindRangeNumberPair({ rangeEl, numEl, min, max, getMin, getMax, initialValue, onCommit }) {
+    const readMin = () => (typeof getMin === 'function' ? getMin() : min);
+    const readMax = () => (typeof getMax === 'function' ? getMax() : max);
     const syncDisplay = (v) => {
       rangeEl.value = String(v);
       numEl.value = String(v);
     };
-    const clampInt = (raw) => Math.max(min, Math.min(max, Math.round(raw)));
+    const clampVal = (raw) => clampInt(raw, readMin(), readMax());
 
-    syncDisplay(clampInt(initialValue));
+    syncDisplay(clampVal(initialValue));
 
     rangeEl.addEventListener('input', () => {
-      const val = clampInt(Number(rangeEl.value));
+      const val = clampVal(Number(rangeEl.value));
       numEl.value = String(val);
       onCommit(val);
     });
@@ -1342,7 +1453,7 @@ function initControls() {
       if (raw === '' || raw === '-') return;
       const parsed = Number(raw);
       if (!Number.isFinite(parsed)) return;
-      if (parsed >= min && parsed <= max) {
+      if (parsed >= readMin() && parsed <= readMax()) {
         const val = Math.round(parsed);
         rangeEl.value = String(val);
         onCommit(val);
@@ -1351,7 +1462,7 @@ function initControls() {
 
     numEl.addEventListener('change', () => {
       const parsed = Number(numEl.value);
-      const val = Number.isFinite(parsed) ? clampInt(parsed) : clampInt(Number(rangeEl.value));
+      const val = Number.isFinite(parsed) ? clampVal(parsed) : clampVal(Number(rangeEl.value));
       syncDisplay(val);
       onCommit(val);
     });
@@ -1368,6 +1479,7 @@ function initControls() {
     onCommit: (val) => {
       state.bitPeriodMs = val;
       saveStorage(STORAGE_KEYS.bitPeriod, val);
+      applyTorchOffsetBounds();
       updateTorchStatusUI();
       updateInspector();
     },
@@ -1389,14 +1501,15 @@ function initControls() {
   const syncTorchOffset = bindRangeNumberPair({
     rangeEl: el.torchOffsetRange,
     numEl: el.torchOffsetNum,
-    min: -20,
-    max: WOP.MAX_OFFSET_MS,
+    getMin: () => Math.max(-20, -getSafeOffsetLimit(state.bitPeriodMs)),
+    getMax: () => getSafeOffsetLimit(state.bitPeriodMs),
     initialValue: state.torchOffsetMs,
     onCommit: (val) => {
       state.torchOffsetMs = val;
       saveStorage(STORAGE_KEYS.torchOffset, val);
     },
   });
+  applyTorchOffsetBounds();
 
   const syncScreenCountdown = bindRangeNumberPair({
     rangeEl: el.screenCountdownRange,
@@ -1473,6 +1586,7 @@ function initControls() {
 
     syncBitPeriod(state.bitPeriodMs);
     syncScreenBitPeriod(state.screenBitPeriodMs);
+    applyTorchOffsetBounds();
     syncTorchOffset(state.torchOffsetMs);
     syncScreenCountdown(state.screenCountdownSec);
     el.dateRefSelect.value = state.dateRef;
@@ -1514,15 +1628,23 @@ function initControls() {
     }
   });
 
-  // Clean up camera if tab is closed/hidden
+  // Clean up camera and abort active flash if tab is closed/hidden
   document.addEventListener('visibilitychange', () => {
-    if (document.hidden && !state.transmitting) {
+    if (document.hidden) {
+      if (state.transmitting) {
+        cancelTransmission();
+      }
       el.chkPreview.checked = false;
       driver.releaseCamera();
       updateTorchStatusUI();
     }
   });
-  window.addEventListener('pagehide', () => driver.releaseCamera());
+  window.addEventListener('pagehide', () => {
+    if (state.transmitting) {
+      cancelTransmission();
+    }
+    driver.releaseCamera();
+  });
 }
 
 initControls();
@@ -1534,7 +1656,7 @@ runTimeSync();
 setInterval(tickClocks, 100);
 setInterval(() => {
   const details = document.getElementById('advancedDetails');
-  if (details && details.open && !state.customTimeEnabled) {
+  if (!state.transmitting && details && details.open && !state.customTimeEnabled) {
     updateInspector();
   }
 }, 1000);

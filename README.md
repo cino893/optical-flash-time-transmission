@@ -57,7 +57,10 @@ The official legacy Flash Setting mobile application is no longer maintained and
 | Mode | Default Bit Period | Availability | Notes |
 | --- | --- | --- | --- |
 | **Phone Rear LED Flashlight *(Default)*** | `30 ms` *(auto-adjusted if HAL is slower)* | Android (Chrome, Edge, Samsung Internet over HTTPS) | Primary mode matching the original app. Uses WebRTC `MediaTrackConstraints` (`torch`), automatic `benchmarkTorch` latency check, optional rear camera alignment reticle, rising-edge LED latency compensation, and immediate camera release after use. |
-| **Screen / Monitor Flash** | `50 ms` *(3 frames @ 60 Hz LCD)* | Desktop PCs, laptops, iOS Safari, any browser | Full-screen pure black/white (`#000000` / `#FFFFFF`) optical flashing mode tuned to 60 Hz displays. Set brightness to 100%, dim room light, and hold the watch dial against the flashing area. |
+| **Screen / Monitor Flash** | `50 ms` *(3 frames @ 60 Hz LCD)* | Desktop PCs, laptops, iOS Safari, any browser | Experimental full-screen pure black/white (`#000000` / `#FFFFFF`) optical flashing mode tuned to 60 Hz displays. Set brightness to 100%, dim room light, and hold the watch dial against the flashing area. *(Note: some OLED/laptop screens may not deliver enough luminous intensity for the watch's small photodiode.)* |
+
+> [!NOTE]
+> **Physical-layer caveat (browser vs. native app):** The WOP v2.4 bitstream, CRC-8, bit stuffing, DST encoding, and offset compensation are verified bit-for-bit against official Longines transmissions. However, browser WebRTC `applyConstraints({ torch })` timing jitter varies across Android Camera2 HALs, iOS Safari does not expose WebRTC torch control, and displays emit less concentrated light than a camera LED. If your phone's LED shows high toggle latency, try increasing the bit period (`40–60 ms`) in Calibration, or consider a native mobile implementation (such as [ProjectL289Mobile](https://github.com/markwatson/ProjectL289Mobile)) for hardware-timed torch control.
 
 ---
 

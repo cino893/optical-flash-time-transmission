@@ -109,7 +109,8 @@ export function recommendBitPeriodFromLatency(
 
 /**
  * High-precision sleep until `targetPerfMs` (performance.now() timeline).
- * Uses setTimeout for the coarse part and short yields for the final ~5 ms so bit edges stay tight.
+ * Uses setTimeout for the coarse part and spins for the final 4.5 ms to avoid
+ * the HTML5 4 ms nested timer clamp and keep optical bit edges crisp.
  */
 async function waitUntil(targetPerfMs, signal) {
   while (true) {
@@ -120,12 +121,12 @@ async function waitUntil(targetPerfMs, signal) {
     if (remaining <= 0.4) {
       return;
     }
-    if (remaining > 8) {
-      await new Promise((resolve) => setTimeout(resolve, Math.floor(remaining - 5)));
-    } else if (remaining > 2) {
+    if (remaining > 10) {
+      await new Promise((resolve) => setTimeout(resolve, Math.floor(remaining - 6)));
+    } else if (remaining > 4.5) {
       await new Promise((resolve) => setTimeout(resolve, 0));
     } else {
-      // Final sub-2ms busy-wait for crisp optical edges
+      // Final sub-4.5ms busy-wait avoids 4ms nested setTimeout clamp
       while (performance.now() < targetPerfMs) {
         if (signal?.aborted) {
           throw new DOMException('Transmission aborted', 'AbortError');
@@ -136,6 +137,79 @@ async function waitUntil(targetPerfMs, signal) {
   }
 }
 
+/**
+ * Reliable WebRTC torch capability detection.
+ * Never treats a non-throwing applyConstraints({ advanced: [{ torch: false }] }) as proof of support,
+ * because browsers silently ignore unknown/unsupported advanced constraints on desktops, Safari, and front cameras.
+ */
+export async function detectTorchCapability(track, { pollAttempts = 5, pollDelayMs = 100 } = {}) {
+  if (!track) return false;
+
+  const hasGetCapabilities = typeof track.getCapabilities === 'function';
+  if (hasGetCapabilities) {
+    const checkCaps = () => {
+      try {
+        const caps = track.getCapabilities();
+        return Boolean(caps && caps.torch === true);
+      } catch {
+        return false;
+      }
+    };
+
+    if (checkCaps()) {
+      return true;
+    }
+
+    // Some Android Chrome Camera2 devices populate capabilities shortly after track start
+    // or expose flash/torch capability through ImageCapture.getPhotoCapabilities().
+    if (typeof globalThis.ImageCapture === 'function') {
+      try {
+        const ic = new globalThis.ImageCapture(track);
+        if (typeof ic.getPhotoCapabilities === 'function') {
+          const photoCaps = await ic.getPhotoCapabilities();
+          if (photoCaps?.torch === true) {
+            return true;
+          }
+          if (
+            Array.isArray(photoCaps?.fillLightMode) &&
+            photoCaps.fillLightMode.includes('torch')
+          ) {
+            return true;
+          }
+        }
+      } catch {
+        // ignore ImageCapture unavailability
+      }
+    }
+
+    for (let i = 0; i < pollAttempts; i++) {
+      if (track.readyState && track.readyState !== 'live') {
+        return false;
+      }
+      await new Promise((r) => setTimeout(r, pollDelayMs));
+      if (checkCaps()) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  // Fallback only when getCapabilities() is absent: apply torch:true and verify getSettings().torch === true
+  if (typeof track.applyConstraints === 'function' && typeof track.getSettings === 'function') {
+    try {
+      await track.applyConstraints({ advanced: [{ torch: true }] });
+      const settings = track.getSettings();
+      const confirmed = Boolean(settings && settings.torch === true);
+      await track.applyConstraints({ advanced: [{ torch: false }] }).catch(() => {});
+      return confirmed;
+    } catch {
+      return false;
+    }
+  }
+
+  return false;
+}
+
 export class OpticalFlashDriver {
   constructor() {
     this.stream = null;
@@ -143,6 +217,8 @@ export class OpticalFlashDriver {
     this.torchSupported = null; // null = unknown, true/false after probe
     this.torchOn = false;
     this.wakeLock = null;
+    this._acquiring = null;
+    this._cameraGen = 0;
   }
 
   get hasActiveCamera() {
@@ -153,8 +229,24 @@ export class OpticalFlashDriver {
     if (this.hasActiveCamera && this.torchSupported === true) {
       return { supported: true, stream: this.stream };
     }
+    if (this._acquiring) {
+      return this._acquiring;
+    }
 
-    this.releaseCamera();
+    const gen = ++this._cameraGen;
+    const promise = this._acquireTorchInternal(gen);
+    this._acquiring = promise;
+    try {
+      return await promise;
+    } finally {
+      if (this._acquiring === promise) {
+        this._acquiring = null;
+      }
+    }
+  }
+
+  async _acquireTorchInternal(gen) {
+    this._stopCurrentTracks();
 
     if (!window.isSecureContext) {
       this.torchSupported = false;
@@ -195,6 +287,18 @@ export class OpticalFlashDriver {
       throw err;
     }
 
+    // If releaseCamera() was called while getUserMedia was pending, stop stream immediately
+    if (gen !== this._cameraGen) {
+      stream.getTracks().forEach((t) => {
+        try {
+          t.stop();
+        } catch {
+          // ignore
+        }
+      });
+      throw new DOMException('Camera acquisition cancelled', 'AbortError');
+    }
+
     const track = stream.getVideoTracks()[0];
     if (!track) {
       stream.getTracks().forEach((t) => t.stop());
@@ -204,18 +308,18 @@ export class OpticalFlashDriver {
       throw err;
     }
 
-    let supportsTorch = false;
-    try {
-      const caps = typeof track.getCapabilities === 'function' ? track.getCapabilities() : null;
-      if (caps && 'torch' in caps && caps.torch) {
-        supportsTorch = true;
-      } else {
-        // Fallback probe: try applying torch: false directly
-        await track.applyConstraints({ advanced: [{ torch: false }] });
-        supportsTorch = true;
-      }
-    } catch {
-      supportsTorch = false;
+    const supportsTorch = await detectTorchCapability(track);
+
+    // Re-check cancellation after async capability probe
+    if (gen !== this._cameraGen) {
+      stream.getTracks().forEach((t) => {
+        try {
+          t.stop();
+        } catch {
+          // ignore
+        }
+      });
+      throw new DOMException('Camera acquisition cancelled', 'AbortError');
     }
 
     this.stream = stream;
@@ -224,7 +328,7 @@ export class OpticalFlashDriver {
     this.torchOn = false;
 
     if (!supportsTorch) {
-      this.releaseCamera();
+      this._stopCurrentTracks();
     }
 
     return { supported: supportsTorch, stream: this.stream };
@@ -318,7 +422,7 @@ export class OpticalFlashDriver {
     }
   }
 
-  releaseCamera() {
+  _stopCurrentTracks() {
     if (this.track && this.track.readyState === 'live') {
       try {
         if (this.torchOn) {
@@ -342,7 +446,15 @@ export class OpticalFlashDriver {
     this.torchOn = false;
   }
 
+  releaseCamera() {
+    this._cameraGen++;
+    this._stopCurrentTracks();
+  }
+
   async requestWakeLock() {
+    if (this.wakeLock && !this.wakeLock.released) {
+      return;
+    }
     try {
       if ('wakeLock' in navigator && navigator.wakeLock?.request) {
         this.wakeLock = await navigator.wakeLock.request('screen');
@@ -376,12 +488,18 @@ export class OpticalFlashDriver {
     onProgress = null,
     signal = null,
   }) {
+    // Capture reference timestamp before async prep (forceTorchOff / wakeLock)
+    // so UTC second-boundary alignment absorbs prep latency cleanly.
+    const callPerf = performance.now();
+
     if (lightMode === 'torch') {
       const res = await this.acquireTorch();
       if (!res.supported) {
         throw new Error('Rear LED torch is not supported by this browser.');
       }
-      await this.forceTorchOff();
+      if (this.torchOn) {
+        await this.forceTorchOff();
+      }
     }
 
     await this.requestWakeLock();
@@ -406,8 +524,8 @@ export class OpticalFlashDriver {
     };
 
     try {
-      const tOrigin = performance.now() + Math.max(0, startDelayMs);
-      if (startDelayMs > 0) {
+      const tOrigin = Math.max(performance.now(), callPerf + Math.max(0, startDelayMs));
+      if (tOrigin - performance.now() > 0.5) {
         await waitUntil(tOrigin, signal);
       }
 

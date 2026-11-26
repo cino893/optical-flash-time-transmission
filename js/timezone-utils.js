@@ -120,6 +120,109 @@ function findTransitionMs(loMs, hiMs, timeZone, offsetAtLo) {
   return hi;
 }
 
+const SOUTHERN_HEMISPHERE_PREFIXES = [
+  'Antarctica/',
+  'Australia/',
+  'America/Argentina/',
+];
+
+const SOUTHERN_HEMISPHERE_ZONES = new Set([
+  'Africa/Blantyre',
+  'Africa/Brazzaville',
+  'Africa/Bujumbura',
+  'Africa/Dar_es_Salaam',
+  'Africa/Gaborone',
+  'Africa/Harare',
+  'Africa/Johannesburg',
+  'Africa/Kigali',
+  'Africa/Kinshasa',
+  'Africa/Libreville',
+  'Africa/Luanda',
+  'Africa/Lubumbashi',
+  'Africa/Lusaka',
+  'Africa/Maputo',
+  'Africa/Maseru',
+  'Africa/Mbabane',
+  'Africa/Nairobi',
+  'Africa/Windhoek',
+  'America/Araguaina',
+  'America/Asuncion',
+  'America/Bahia',
+  'America/Belem',
+  'America/Buenos_Aires',
+  'America/Campo_Grande',
+  'America/Cuiaba',
+  'America/Eirunepe',
+  'America/Fortaleza',
+  'America/Guayaquil',
+  'America/La_Paz',
+  'America/Lima',
+  'America/Maceio',
+  'America/Manaus',
+  'America/Montevideo',
+  'America/Noronha',
+  'America/Porto_Velho',
+  'America/Punta_Arenas',
+  'America/Recife',
+  'America/Rio_Branco',
+  'America/Santarem',
+  'America/Santiago',
+  'America/Sao_Paulo',
+  'Asia/Dili',
+  'Asia/Jakarta',
+  'Asia/Jayapura',
+  'Asia/Makassar',
+  'Atlantic/St_Helena',
+  'Atlantic/Stanley',
+  'Indian/Antananarivo',
+  'Indian/Chagos',
+  'Indian/Christmas',
+  'Indian/Cocos',
+  'Indian/Comoro',
+  'Indian/Kerguelen',
+  'Indian/Mahe',
+  'Indian/Mauritius',
+  'Indian/Mayotte',
+  'Indian/Reunion',
+  'Pacific/Apia',
+  'Pacific/Auckland',
+  'Pacific/Bougainville',
+  'Pacific/Chatham',
+  'Pacific/Easter',
+  'Pacific/Efate',
+  'Pacific/Fakaofo',
+  'Pacific/Fiji',
+  'Pacific/Funafuti',
+  'Pacific/Galapagos',
+  'Pacific/Gambier',
+  'Pacific/Guadalcanal',
+  'Pacific/Kanton',
+  'Pacific/Marquesas',
+  'Pacific/Nauru',
+  'Pacific/Niue',
+  'Pacific/Norfolk',
+  'Pacific/Noumea',
+  'Pacific/Pago_Pago',
+  'Pacific/Pitcairn',
+  'Pacific/Port_Moresby',
+  'Pacific/Rarotonga',
+  'Pacific/Tahiti',
+  'Pacific/Tongatapu',
+  'Pacific/Wallis',
+]);
+
+function inferHemisphereWithoutDst(timeZone) {
+  if (SOUTHERN_HEMISPHERE_ZONES.has(timeZone)) {
+    return WOP.HEMISPHERE.SOUTH;
+  }
+  for (const prefix of SOUTHERN_HEMISPHERE_PREFIXES) {
+    if (timeZone.startsWith(prefix)) {
+      return WOP.HEMISPHERE.SOUTH;
+    }
+  }
+  return WOP.HEMISPHERE.NORTH;
+}
+
 /**
  * Inspect an IANA timezone for a given calendar year and return full WOP-compatible metadata.
  */
@@ -182,15 +285,24 @@ export function analyzeTimezone(timeZone, year = new Date().getUTCFullYear()) {
     prevMs = t;
   }
 
-  // Standard (non-DST) offset is the minimum offset observed in that year
-  const standardOffsetMinutes = Math.min(...offsetsSeen);
-  const nowOffsetMinutes = getOffsetMinutesAt(Date.now(), timeZone);
-  const isDstNow = nowOffsetMinutes > standardOffsetMinutes;
+  const minOffset = Math.min(...offsetsSeen);
+  const maxOffset = Math.max(...offsetsSeen);
+  const dstShiftMinutes = maxOffset - minOffset;
+  const hasTwoTransitions = Boolean(startEvent && stopEvent);
+  const nonStandardDst = hasTwoTransitions && dstShiftMinutes !== 60;
+  // WOP DST sub-message assumes a standard 1-hour seasonal shift; omit incompatible 30m/2h rules
+  const hasDst = hasTwoTransitions && dstShiftMinutes === 60;
 
-  const hasDst = Boolean(startEvent && stopEvent);
-  const hemisphere = hasDst && startEvent.month < stopEvent.month
-    ? WOP.HEMISPHERE.NORTH
-    : WOP.HEMISPHERE.SOUTH;
+  const nowOffsetMinutes = getOffsetMinutesAt(Date.now(), timeZone);
+  // For standard 1-hour DST zones, send the base (non-DST) offset so the watch applies DST itself.
+  // For zones without WOP-compatible DST (including permanent offset changes or non-1h DST),
+  // send the active offset so the watch displays the exact current local time.
+  const standardOffsetMinutes = hasDst ? minOffset : nowOffsetMinutes;
+  const isDstNow = hasDst && nowOffsetMinutes > standardOffsetMinutes;
+
+  const hemisphere = hasTwoTransitions
+    ? (startEvent.month < stopEvent.month ? WOP.HEMISPHERE.NORTH : WOP.HEMISPHERE.SOUTH)
+    : inferHemisphereWithoutDst(timeZone);
 
   // Split standardOffsetMinutes into WOP hourShift + minuteShift (truncating toward zero like Java TimeUnit.toHours)
   const hourShift = Math.trunc(standardOffsetMinutes / 60);
@@ -211,6 +323,8 @@ export function analyzeTimezone(timeZone, year = new Date().getUTCFullYear()) {
     minuteShift,
     hemisphere,
     hasDst,
+    nonStandardDst,
+    dstShiftMinutes,
     dst: hasDst
       ? {
           start: {

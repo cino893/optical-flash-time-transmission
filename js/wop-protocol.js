@@ -334,12 +334,16 @@ export function buildAutoSyncedFrame({
   dst = null,
   bitPeriodMs = WOP.DEFAULT_BIT_PERIOD_MS,
   dateRef = 'utc', // 'utc' (consistent with watch UTC clock) or 'local'
+  getDateParts = null, // optional (utcMs) => { year, month, day } for target-timezone local dates
   bitStuffing = true,
   compensateDuration = true,
 }) {
   const safePeriod = Math.max(WOP.MIN_BIT_PERIOD_MS, Math.min(WOP.MAX_BIT_PERIOD_MS, Math.round(bitPeriodMs)));
 
   const makeDateParts = (ms) => {
+    if (typeof getDateParts === 'function') {
+      return getDateParts(ms);
+    }
     const d = new Date(ms);
     if (dateRef === 'local') {
       return {
@@ -450,12 +454,13 @@ export function buildAutoSyncedFrame({
  * overall timeline never drifts.
  */
 export function buildBitSchedule(txBits, bitPeriodMs = WOP.DEFAULT_BIT_PERIOD_MS, offsetMs = 0) {
-  const clampedOffset = Math.max(-bitPeriodMs + 2, Math.min(WOP.MAX_OFFSET_MS, offsetMs));
+  const maxSafeOffset = Math.min(WOP.MAX_OFFSET_MS, Math.max(0, Math.floor(bitPeriodMs / 2)));
+  const clampedOffset = Math.max(-maxSafeOffset, Math.min(maxSafeOffset, offsetMs));
   const schedule = [];
   let t = bitPeriodMs;
   let compensated = false;
 
-  if (txBits.length > 1 && txBits[1] === 1 && clampedOffset !== 0) {
+  if (txBits.length > 0 && txBits[0] === 1 && clampedOffset !== 0) {
     t -= clampedOffset;
     compensated = true;
   }
@@ -480,7 +485,7 @@ export function buildBitSchedule(txBits, bitPeriodMs = WOP.DEFAULT_BIT_PERIOD_MS
     }
   }
 
-  const endTimeMs = (schedule.length > 0 ? schedule[schedule.length - 1].timeMs : 0) + bitPeriodMs;
+  const endTimeMs = schedule.length > 0 ? t : 0;
   return { schedule, endTimeMs };
 }
 

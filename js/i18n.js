@@ -29,7 +29,7 @@ export const TRANSLATIONS = {
     torchStatusBenchAdjusted:
       'Rear LED ready — slow HAL detected (~{median} ms, max {max} ms). Bit period auto-adjusted to {period} ms.',
     torchStatusIosWarning:
-      'iOS Safari typically blocks web pages from controlling the rear LED flashlight. Tap Transmit to try LED or automatically fall back to Screen / Monitor Flash (set brightness to 100%).',
+      'iOS Safari does not expose web access to the rear LED flashlight. Switch to Screen / Monitor Flash below (set brightness to 100%) or use Chrome on Android for Rear LED.',
     torchStatusUnsupported:
       'This browser does not expose camera LED torch control. Switch to Screen Flash mode, or open this page in Chrome on Android.',
     torchStatusInsecure:
@@ -88,9 +88,9 @@ export const TRANSLATIONS = {
       'Tap <strong>Transmit</strong> and keep the watch steady for ~2–4 seconds until the hands move to the new time.',
     advancedTitle: 'Calibration & Protocol Inspector',
     bitPeriodLabel: 'Rear LED bit period (ms)',
-    bitPeriodHelp: 'Default is 30 ms (Longines standard). Valid WOP range: 15–80 ms. Auto-adjusted if slow LED hardware is detected.',
+    bitPeriodHelp: 'Default is 30 ms (Longines standard). Valid WOP range: 10–100 ms. Auto-adjusted if slow LED hardware is detected.',
     screenBitPeriodLabel: 'Screen / Monitor bit period (ms)',
-    screenBitPeriodHelp: 'Default is 50 ms (~3 frames on 60 Hz LCD monitors) for crisp black/white contrast. Valid range: 20–100 ms.',
+    screenBitPeriodHelp: 'Default is 50 ms (~3 frames on 60 Hz LCD monitors) for crisp black/white contrast. Valid range: 10–100 ms.',
     torchOffsetLabel: 'Torch turn-on offset (ms)',
     torchOffsetHelp: 'Fires 0→1 rising edges earlier to compensate for LED turn-on lag (0 ms Android, 8 ms Apple).',
     txDurationCompLabel: 'Compensate transmission duration (align end to UTC second)',
@@ -146,7 +146,7 @@ export const TRANSLATIONS = {
     torchStatusBenchAdjusted:
       'Tylna latarka LED gotowa — wykryto wolne przełączanie HAL (~{median} ms, maks. {max} ms). Okres bitu automatycznie zmieniono na {period} ms.',
     torchStatusIosWarning:
-      'Safari na iOS zwykle blokuje dostęp stron WWW do tylnej latarki LED. Kliknij Wyślij, aby spróbować LED lub automatycznie przejść na błysk ekranu (ustaw jasność na 100%).',
+      'Safari na iOS nie udostępnia stronom WWW sterowania tylną latarką LED. Przełącz się na Błysk ekranu / monitora poniżej (ustaw jasność na 100%) lub użyj Chrome na Androidzie dla latarki LED.',
     torchStatusUnsupported:
       'Ta przeglądarka nie obsługuje sterowania latarką LED z poziomu strony. Użyj trybu błysku ekranu lub otwórz stronę w Chrome na Androidzie.',
     torchStatusInsecure:
@@ -205,9 +205,9 @@ export const TRANSLATIONS = {
       'Kliknij <strong>Wyślij</strong> i utrzymuj zegarek nieruchomo przez ok. 2–4 sekundy, aż transmisja się zakończy i wskazówki przestawią się na właściwą godzinę.',
     advancedTitle: 'Kalibracja i podgląd ramki protokołu',
     bitPeriodLabel: 'Okres bitu LED (ms)',
-    bitPeriodHelp: 'Domyślnie 30 ms (standard Longines). Zakres: 15–80 ms. Automatycznie zwiększany przy wolnym sterowniku LED.',
+    bitPeriodHelp: 'Domyślnie 30 ms (standard Longines). Zakres WOP: 10–100 ms. Automatycznie zwiększany przy wolnym sterowniku LED.',
     screenBitPeriodLabel: 'Okres bitu ekranu / monitora (ms)',
-    screenBitPeriodHelp: 'Domyślnie 50 ms (~3 klatki na monitorze 60 Hz) dla wyraźnego kontrastu czerni i bieli. Zakres: 20–100 ms.',
+    screenBitPeriodHelp: 'Domyślnie 50 ms (~3 klatki na monitorze 60 Hz) dla wyraźnego kontrastu czerni i bieli. Zakres: 10–100 ms.',
     torchOffsetLabel: 'Kompensacja włączenia LED (ms)',
     torchOffsetHelp: 'Wcześniejsze wyzwalanie zboczy 0→1 dla kompensacji opóźnienia diody (0 ms Android, 8 ms Apple).',
     txDurationCompLabel: 'Kompensuj czas trwania transmisji (wyrównaj koniec do pełnej sekundy UTC)',

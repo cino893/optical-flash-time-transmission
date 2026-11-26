@@ -18,7 +18,11 @@ import {
   bitsToString,
 } from '../js/wop-protocol.js';
 import { analyzeTimezone } from '../js/timezone-utils.js';
-import { recommendBitPeriodFromLatency, classifyCameraError } from '../js/flash-driver.js';
+import {
+  recommendBitPeriodFromLatency,
+  classifyCameraError,
+  detectTorchCapability,
+} from '../js/flash-driver.js';
 import { computeClockOffsetMs } from '../js/time-sync.js';
 
 test('ProtHeader matches 117 << 1 = 11101010', () => {
@@ -185,17 +189,121 @@ test('Auto-sync timing lands end of stuffed frame on exact whole UTC second', ()
 
 test('Bit schedule rising-edge offset shifts 0->1 transitions early without cumulative drift', () => {
   const bits = [1, 1, 0, 1, 0, 0];
-  const { schedule } = buildBitSchedule(bits, 30, 8);
-  // index 0: bits[1]==1 => t = 30 - 8 = 22 (compensated=true)
+  const { schedule, endTimeMs } = buildBitSchedule(bits, 30, 8);
+  // index 0: bits[0]==1 => t = 30 - 8 = 22 (compensated=true)
   // index 1: t = 22 + 30 + 8 = 60
   // index 2: t = 60 + 30 = 90 (bit=0, next=1 => next t -= 8)
   // index 3: t = 90 + 30 - 8 = 112 (compensated=true)
   // index 4: t = 112 + 30 + 8 = 150
-  // index 5: t = 150 + 30 = 180
+  // index 5: t = 150 + 30 = 180, endTimeMs = 210
   assert.deepEqual(
     schedule.map((s) => s.timeMs),
     [22, 60, 90, 112, 150, 180],
   );
+  assert.equal(endTimeMs, 210);
+
+  // Edge case: [1, 0, 1] starts with 1 followed by 0 and ends on 1
+  const alt = buildBitSchedule([1, 0, 1], 30, 8);
+  const altDurs = alt.schedule.map((s, idx) =>
+    (idx < alt.schedule.length - 1 ? alt.schedule[idx + 1].timeMs : alt.endTimeMs) - s.timeMs,
+  );
+  assert.deepEqual(altDurs, [38, 22, 38]);
+
+  // Edge case: [0, 1, 0] starts with 0 followed by rising edge at index 1
+  const leadZero = buildBitSchedule([0, 1, 0], 30, 8);
+  const leadZeroDurs = leadZero.schedule.map((s, idx) =>
+    (idx < leadZero.schedule.length - 1 ? leadZero.schedule[idx + 1].timeMs : leadZero.endTimeMs) - s.timeMs,
+  );
+  assert.deepEqual(leadZeroDurs, [22, 38, 30]);
+
+  // Extreme offset clamping: offset=30 at P=30 clamps to 15 (no zero-length bits)
+  const extreme30 = buildBitSchedule([0, 1, 0, 1, 0], 30, 30);
+  const extreme30Durs = extreme30.schedule.map((s, idx) =>
+    (idx < extreme30.schedule.length - 1 ? extreme30.schedule[idx + 1].timeMs : extreme30.endTimeMs) - s.timeMs,
+  );
+  assert.deepEqual(extreme30Durs, [15, 45, 15, 45, 30]);
+
+  // Extreme offset clamping: offset=30 at P=10 clamps to 5 (timestamps strictly monotonic)
+  const extreme10 = buildBitSchedule([0, 1, 0, 1, 0], 10, 30);
+  for (let i = 1; i < extreme10.schedule.length; i++) {
+    assert.ok(
+      extreme10.schedule[i].timeMs > extreme10.schedule[i - 1].timeMs,
+      'Schedule timestamps must be strictly increasing',
+    );
+  }
+});
+
+test('Full WOP encoder matches reference bit vectors across T1/T2, DST, half/quarter-hour, and extreme offsets', () => {
+  const vectors = [
+    {
+      name: 'UTC+0 London no DST', mode: 'home', tz: { hourShift: 0, minuteShift: 0, hemisphere: 0 },
+      utc: { hour: 12, minute: 0, second: 0 }, date: { year: 26, month: 3, day: 8 }, dst: null,
+      raw: '111010100001001110010000000001100000000000000001101000110100000100000',
+      tx: '11101010000100111001000001000011000001000001000001011010001101000001100000100',
+    },
+    {
+      name: 'UTC+1 Berlin standard T2', mode: 'travel', tz: { hourShift: 1, minuteShift: 0, hemisphere: 0 },
+      utc: { hour: 9, minute: 57, second: 25 }, date: { year: 26, month: 1, day: 15 }, dst: null,
+      raw: '111010100001001110100000100001001111001011001001101000010111100010000',
+      tx: '111010100001001110100000110000100111100101100100110100001011110001000000',
+    },
+    {
+      name: 'UTC+2 Berlin DST T1', mode: 'home', tz: { hourShift: 2, minuteShift: 0, hemisphere: 0 },
+      utc: { hour: 14, minute: 30, second: 45 }, date: { year: 26, month: 7, day: 20 },
+      dst: { start: { season: 0, month: 3, day: 29, hour: 2 }, stop: { season: 1, month: 10, day: 25, hour: 3 } },
+      raw: '11101010001000111001000100000111001111010110100110100111101000011101100011111010001011010110010001101001100',
+      tx: '111010100010001110010001000001111001111010110100110100111101000011101100011111001000101101011001000110100110000',
+    },
+    {
+      name: 'UTC-8 LA no DST', mode: 'home', tz: { hourShift: -8, minuteShift: 0, hemisphere: 0 },
+      utc: { hour: 3, minute: 15, second: 30 }, date: { year: 26, month: 12, day: 25 }, dst: null,
+      raw: '111010100001001110011100000000011001111011110001101011001100101101000',
+      tx: '111010100001001110011100000100001100111101111000110101100110010110100000',
+    },
+    {
+      name: 'UTC+5:30 India no DST', mode: 'home', tz: { hourShift: 5, minuteShift: 1, hemisphere: 0 },
+      utc: { hour: 8, minute: 0, second: 0 }, date: { year: 26, month: 3, day: 8 }, dst: null,
+      raw: '111010100001001110010010101001000000000000000001101000110100011001110',
+      tx: '11101010000100111001001010100100000100000100000100110100011010001100111000',
+    },
+    {
+      name: 'UTC+5:45 Nepal no DST', mode: 'home', tz: { hourShift: 5, minuteShift: 2, hemisphere: 0 },
+      utc: { hour: 8, minute: 0, second: 0 }, date: { year: 26, month: 3, day: 8 }, dst: null,
+      raw: '111010100001001110010010110001000000000000000001101000110100001011000',
+      tx: '11101010000100111001001011000100000100000100000100110100011010000101100000',
+    },
+    {
+      name: 'UTC+11 Sydney DST T1', mode: 'home', tz: { hourShift: 11, minuteShift: 0, hemisphere: 1 },
+      utc: { hour: 0, minute: 0, second: 0 }, date: { year: 26, month: 1, day: 1 },
+      dst: { start: { season: 0, month: 10, day: 4, hour: 2 }, stop: { season: 1, month: 4, day: 5, hour: 3 } },
+      raw: '11101010001000111001010110010000000000000000000110100001000010011101101010001000001010100001010001111011010',
+      tx: '11101010001000111001010110010000010000010000010000110100001000010011101101010001000001101010000101000111101101000',
+    },
+    {
+      name: 'UTC-12 extreme negative', mode: 'home', tz: { hourShift: -12, minuteShift: 0, hemisphere: 0 },
+      utc: { hour: 0, minute: 0, second: 0 }, date: { year: 26, month: 6, day: 1 }, dst: null,
+      raw: '111010100001001110011010000000000000000000000001101001100000100111101',
+      tx: '1110101000010011100110100000100000100000100000100001101001100000110011110100',
+    },
+    {
+      name: 'UTC+15 extreme positive', mode: 'home', tz: { hourShift: 15, minuteShift: 0, hemisphere: 0 },
+      utc: { hour: 12, minute: 30, second: 30 }, date: { year: 26, month: 6, day: 1 }, dst: null,
+      raw: '111010100001001110010111100001100011110011110001101001100000110011000',
+      tx: '111010100001001110010111100001100011110011110001101001100000111001100000',
+    },
+  ];
+
+  for (const v of vectors) {
+    const res = buildWopFrame({
+      mode: v.mode,
+      timezone: v.tz,
+      utcTime: v.utc,
+      date: v.date,
+      dst: v.dst,
+    });
+    assert.equal(bitsToString(res.rawBits), v.raw, `${v.name}: rawBits mismatch`);
+    assert.equal(bitsToString(res.txBits), v.tx, `${v.name}: txBits mismatch`);
+  }
 });
 
 test('Intl timezone analyzer matches known 2026 DST rules for EU, US, Australia, Japan, India', () => {
@@ -231,17 +339,40 @@ test('Intl timezone analyzer matches known 2026 DST rules for EU, US, Australia,
   const tokyo = analyzeTimezone('Asia/Tokyo', 2026);
   assert.equal(tokyo.hourShift, 9);
   assert.equal(tokyo.minuteShift, 0);
+  assert.equal(tokyo.hemisphere, WOP.HEMISPHERE.NORTH);
   assert.equal(tokyo.hasDst, false);
   assert.equal(tokyo.dst, null);
 
   const kolkata = analyzeTimezone('Asia/Kolkata', 2026);
   assert.equal(kolkata.hourShift, 5);
   assert.equal(kolkata.minuteShift, WOP.MINUTE_SHIFT.THIRTY);
+  assert.equal(kolkata.hemisphere, WOP.HEMISPHERE.NORTH);
   assert.equal(kolkata.hasDst, false);
+
+  const utc = analyzeTimezone('UTC', 2026);
+  assert.equal(utc.hourShift, 0);
+  assert.equal(utc.hemisphere, WOP.HEMISPHERE.NORTH);
+  assert.equal(utc.hasDst, false);
+
+  const perth = analyzeTimezone('Australia/Perth', 2026);
+  assert.equal(perth.hourShift, 8);
+  assert.equal(perth.hemisphere, WOP.HEMISPHERE.SOUTH);
+  assert.equal(perth.hasDst, false);
+
+  const joburg = analyzeTimezone('Africa/Johannesburg', 2026);
+  assert.equal(joburg.hourShift, 2);
+  assert.equal(joburg.hemisphere, WOP.HEMISPHERE.SOUTH);
+  assert.equal(joburg.hasDst, false);
+
+  const saoPaulo = analyzeTimezone('America/Sao_Paulo', 2026);
+  assert.equal(saoPaulo.hourShift, -3);
+  assert.equal(saoPaulo.hemisphere, WOP.HEMISPHERE.SOUTH);
+  assert.equal(saoPaulo.hasDst, false);
 
   const stJohns = analyzeTimezone('America/St_Johns', 2026);
   assert.equal(stJohns.hourShift, -3);
   assert.equal(stJohns.minuteShift, WOP.MINUTE_SHIFT.THIRTY);
+  assert.equal(stJohns.hemisphere, WOP.HEMISPHERE.NORTH);
   assert.equal(stJohns.hasDst, true);
 });
 
@@ -323,4 +454,66 @@ test('classifyCameraError categorizes permission, missing hardware, busy camera,
   assert.equal(classifyCameraError(new Error('Unexpected driver failure')), 'unknown');
   assert.equal(classifyCameraError(null), 'unknown');
   assert.equal(classifyCameraError(undefined), 'unknown');
+});
+
+test('detectTorchCapability rejects desktop/Safari tracks that silently ignore advanced torch constraints', async () => {
+  // Desktop Chrome / Safari track: getCapabilities() has no torch:true, applyConstraints resolves silently
+  const desktopTrack = {
+    readyState: 'live',
+    getCapabilities: () => ({ facingMode: ['user'] }),
+    applyConstraints: async () => {},
+  };
+  assert.equal(
+    await detectTorchCapability(desktopTrack, { pollAttempts: 1, pollDelayMs: 1 }),
+    false,
+  );
+
+  // Android rear camera track: getCapabilities().torch === true
+  const androidTrack = {
+    readyState: 'live',
+    getCapabilities: () => ({ torch: true }),
+    applyConstraints: async () => {},
+  };
+  assert.equal(
+    await detectTorchCapability(androidTrack, { pollAttempts: 1, pollDelayMs: 1 }),
+    true,
+  );
+
+  // Delayed Android Camera2 capability appearance on second poll
+  let calls = 0;
+  const delayedTrack = {
+    readyState: 'live',
+    getCapabilities: () => (++calls >= 2 ? { torch: true } : {}),
+  };
+  assert.equal(
+    await detectTorchCapability(delayedTrack, { pollAttempts: 3, pollDelayMs: 1 }),
+    true,
+  );
+
+  // Fallback without getCapabilities: only true when getSettings().torch confirms true
+  const noCapsFalse = {
+    readyState: 'live',
+    applyConstraints: async () => {},
+    getSettings: () => ({}),
+  };
+  assert.equal(await detectTorchCapability(noCapsFalse), false);
+
+  let torchVal = false;
+  const noCapsTrue = {
+    readyState: 'live',
+    applyConstraints: async (c) => {
+      torchVal = Boolean(c?.advanced?.[0]?.torch);
+    },
+    getSettings: () => ({ torch: torchVal }),
+  };
+  assert.equal(await detectTorchCapability(noCapsTrue), true);
+  assert.equal(torchVal, false, 'Probe must turn torch back off after confirming');
+});
+
+test('analyzeTimezone omits non-1-hour DST rules (Lord Howe 30m, Troll 2h)', () => {
+  const lordHowe = analyzeTimezone('Australia/Lord_Howe', 2026);
+  assert.equal(lordHowe.hasDst, false);
+  assert.equal(lordHowe.nonStandardDst, true);
+  assert.equal(lordHowe.dst, null);
+  assert.equal(lordHowe.hemisphere, WOP.HEMISPHERE.SOUTH);
 });
