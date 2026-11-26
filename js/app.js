@@ -3,23 +3,23 @@ import {
   buildWopFrame,
   buildAutoSyncedFrame,
   bitsToString,
-} from './wop-protocol.js';
+} from './wop-protocol.js?v=5';
 import {
   analyzeTimezone,
   getSupportedTimezones,
   getLocalSystemTimezone,
   getLocalParts,
   formatUtcOffset,
-} from './timezone-utils.js';
-import { OpticalFlashDriver, detectEnvironment, classifyCameraError } from './flash-driver.js';
-import { detectInitialLanguage, createTranslator } from './i18n.js';
-import { syncNetworkUtcOffset } from './time-sync.js';
+} from './timezone-utils.js?v=5';
+import { OpticalFlashDriver, detectEnvironment, classifyCameraError } from './flash-driver.js?v=5';
+import { detectInitialLanguage, createTranslator } from './i18n.js?v=5';
+import { syncNetworkUtcOffset } from './time-sync.js?v=5';
 import {
   unlockFeedbackAudio,
   feedbackStart,
   feedbackSuccess,
   feedbackError,
-} from './feedback.js';
+} from './feedback.js?v=5';
 
 const DEFAULT_SCREEN_BIT_PERIOD_MS = 50;
 
@@ -244,13 +244,22 @@ function applyLanguage(lang) {
   });
 
   document.querySelectorAll('[data-i18n]').forEach((node) => {
-    node.textContent = state.t(node.dataset.i18n);
+    const key = node.dataset.i18n;
+    if (state.t.has(key)) {
+      node.textContent = state.t(key);
+    }
   });
   document.querySelectorAll('[data-i18n-html]').forEach((node) => {
-    node.innerHTML = state.t(node.dataset.i18nHtml);
+    const key = node.dataset.i18nHtml;
+    if (state.t.has(key)) {
+      node.innerHTML = state.t(key);
+    }
   });
   document.querySelectorAll('[data-i18n-placeholder]').forEach((node) => {
-    node.placeholder = state.t(node.dataset.i18nPlaceholder);
+    const key = node.dataset.i18nPlaceholder;
+    if (state.t.has(key)) {
+      node.placeholder = state.t(key);
+    }
   });
 
   updateTimeSyncUI();

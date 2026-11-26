@@ -1,27 +1,38 @@
-const CACHE_NAME = 'wop-flash-sync-v4';
+const CACHE_NAME = 'wop-flash-sync-v5';
 const APP_ASSETS = [
   './',
   './index.html',
-  './styles.css',
+  './styles.css?v=5',
   './manifest.webmanifest',
   './favicon.ico',
   './assets/icon.svg',
   './assets/icon-192.png',
   './assets/apple-touch-icon.png',
-  './js/app.js',
-  './js/wop-protocol.js',
-  './js/timezone-utils.js',
-  './js/flash-driver.js',
-  './js/feedback.js',
-  './js/time-sync.js',
-  './js/i18n.js',
+  './js/app.js?v=5',
+  './js/wop-protocol.js?v=5',
+  './js/timezone-utils.js?v=5',
+  './js/flash-driver.js?v=5',
+  './js/feedback.js?v=5',
+  './js/time-sync.js?v=5',
+  './js/i18n.js?v=5',
 ];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches
       .open(CACHE_NAME)
-      .then((cache) => cache.addAll(APP_ASSETS))
+      .then((cache) =>
+        Promise.all(
+          APP_ASSETS.map((asset) =>
+            fetch(new Request(asset, { cache: 'no-cache' })).then((res) => {
+              if (res && res.ok) {
+                return cache.put(asset, res);
+              }
+              return undefined;
+            }),
+          ),
+        ),
+      )
       .then(() => self.skipWaiting()),
   );
 });
@@ -46,7 +57,7 @@ self.addEventListener('fetch', (event) => {
   if (url.origin !== self.location.origin) return;
 
   event.respondWith(
-    fetch(request)
+    fetch(request, { cache: 'no-cache' })
       .then((networkRes) => {
         if (networkRes && networkRes.ok) {
           const clone = networkRes.clone();
@@ -54,6 +65,10 @@ self.addEventListener('fetch', (event) => {
         }
         return networkRes;
       })
-      .catch(() => caches.match(request).then((cached) => cached || caches.match('./index.html'))),
+      .catch(() =>
+        caches
+          .match(request, { ignoreSearch: true })
+          .then((cached) => cached || caches.match('./index.html')),
+      ),
   );
 });

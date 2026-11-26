@@ -244,7 +244,7 @@ export function detectInitialLanguage() {
 
 export function createTranslator(lang) {
   const dict = TRANSLATIONS[lang] || TRANSLATIONS.en;
-  return function t(key, vars = null) {
+  function t(key, vars = null) {
     let str = dict[key] ?? TRANSLATIONS.en[key] ?? key;
     if (vars) {
       for (const [k, v] of Object.entries(vars)) {
@@ -252,5 +252,7 @@ export function createTranslator(lang) {
       }
     }
     return str;
-  };
+  }
+  t.has = (key) => Object.prototype.hasOwnProperty.call(dict, key) || Object.prototype.hasOwnProperty.call(TRANSLATIONS.en, key);
+  return t;
 }
