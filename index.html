@@ -15,7 +15,7 @@
       content="Optical flash time & date transmitter (WOP v2.4) for Longines Conquest V.H.P. GMT watches using phone LED flashlight or screen flash."
     />
     <title>Optical Flash Time Sync — Longines Conquest V.H.P. GMT</title>
-    <link rel="stylesheet" href="styles.css?v=6" />
+    <link rel="stylesheet" href="styles.css?v=7" />
   </head>
   <body>
     <header class="masthead">
@@ -321,37 +321,49 @@
               <div class="calib-grid">
                 <div class="field">
                   <div class="label-row">
-                    <label for="bitPeriodRange" data-i18n="bitPeriodLabel">Rear LED bit period (ms)</label>
-                    <span id="bitPeriodVal" class="mono value-pill">30 ms</span>
+                    <label for="bitPeriodNum" data-i18n="bitPeriodLabel">Rear LED bit period (ms)</label>
+                    <span class="num-unit">
+                      <input type="number" id="bitPeriodNum" class="num-input mono" min="10" max="100" step="1" value="30" inputmode="numeric" />
+                      <span class="unit-suffix">ms</span>
+                    </span>
                   </div>
-                  <input type="range" id="bitPeriodRange" min="15" max="80" step="1" value="30" />
+                  <input type="range" id="bitPeriodRange" min="10" max="100" step="1" value="30" aria-label="Rear LED bit period slider" />
                   <small class="help-text" data-i18n="bitPeriodHelp"></small>
                 </div>
 
                 <div class="field">
                   <div class="label-row">
-                    <label for="screenBitPeriodRange" data-i18n="screenBitPeriodLabel">Screen / Monitor bit period (ms)</label>
-                    <span id="screenBitPeriodVal" class="mono value-pill">50 ms</span>
+                    <label for="screenBitPeriodNum" data-i18n="screenBitPeriodLabel">Screen / Monitor bit period (ms)</label>
+                    <span class="num-unit">
+                      <input type="number" id="screenBitPeriodNum" class="num-input mono" min="10" max="100" step="1" value="50" inputmode="numeric" />
+                      <span class="unit-suffix">ms</span>
+                    </span>
                   </div>
-                  <input type="range" id="screenBitPeriodRange" min="20" max="100" step="1" value="50" />
+                  <input type="range" id="screenBitPeriodRange" min="10" max="100" step="1" value="50" aria-label="Screen bit period slider" />
                   <small class="help-text" data-i18n="screenBitPeriodHelp"></small>
                 </div>
 
                 <div class="field">
                   <div class="label-row">
-                    <label for="torchOffsetRange" data-i18n="torchOffsetLabel">Torch turn-on offset (ms)</label>
-                    <span id="torchOffsetVal" class="mono value-pill">0 ms</span>
+                    <label for="torchOffsetNum" data-i18n="torchOffsetLabel">Torch turn-on offset (ms)</label>
+                    <span class="num-unit">
+                      <input type="number" id="torchOffsetNum" class="num-input mono" min="-20" max="30" step="1" value="0" inputmode="numeric" />
+                      <span class="unit-suffix">ms</span>
+                    </span>
                   </div>
-                  <input type="range" id="torchOffsetRange" min="-10" max="25" step="1" value="0" />
+                  <input type="range" id="torchOffsetRange" min="-20" max="30" step="1" value="0" aria-label="Torch offset slider" />
                   <small class="help-text" data-i18n="torchOffsetHelp"></small>
                 </div>
 
                 <div class="field">
                   <div class="label-row">
-                    <label for="screenCountdownRange" data-i18n="screenCountdownLabel">Screen Flash countdown (s)</label>
-                    <span id="screenCountdownVal" class="mono value-pill">2 s</span>
+                    <label for="screenCountdownNum" data-i18n="screenCountdownLabel">Screen Flash countdown (s)</label>
+                    <span class="num-unit">
+                      <input type="number" id="screenCountdownNum" class="num-input mono" min="0" max="10" step="1" value="2" inputmode="numeric" />
+                      <span class="unit-suffix">s</span>
+                    </span>
                   </div>
-                  <input type="range" id="screenCountdownRange" min="0" max="5" step="1" value="2" />
+                  <input type="range" id="screenCountdownRange" min="0" max="10" step="1" value="2" aria-label="Screen countdown slider" />
                 </div>
 
                 <div class="field">
@@ -506,6 +518,6 @@
       </div>
     </div>
 
-    <script type="module" src="js/app.js?v=6"></script>
+    <script type="module" src="js/app.js?v=7"></script>
   </body>
 </html>

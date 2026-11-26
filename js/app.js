@@ -3,23 +3,23 @@ import {
   buildWopFrame,
   buildAutoSyncedFrame,
   bitsToString,
-} from './wop-protocol.js?v=6';
+} from './wop-protocol.js?v=7';
 import {
   analyzeTimezone,
   getSupportedTimezones,
   getLocalSystemTimezone,
   getLocalParts,
   formatUtcOffset,
-} from './timezone-utils.js?v=6';
-import { OpticalFlashDriver, detectEnvironment, classifyCameraError } from './flash-driver.js?v=6';
-import { detectInitialLanguage, createTranslator } from './i18n.js?v=6';
-import { syncNetworkUtcOffset } from './time-sync.js?v=6';
+} from './timezone-utils.js?v=7';
+import { OpticalFlashDriver, detectEnvironment, classifyCameraError } from './flash-driver.js?v=7';
+import { detectInitialLanguage, createTranslator } from './i18n.js?v=7';
+import { syncNetworkUtcOffset } from './time-sync.js?v=7';
 import {
   unlockFeedbackAudio,
   feedbackStart,
   feedbackSuccess,
   feedbackError,
-} from './feedback.js?v=6';
+} from './feedback.js?v=7';
 
 const DEFAULT_SCREEN_BIT_PERIOD_MS = 50;
 
@@ -124,13 +124,13 @@ const el = {
   btnToastCancel: document.getElementById('btnToastCancel'),
   btnToastClose: document.getElementById('btnToastClose'),
   bitPeriodRange: document.getElementById('bitPeriodRange'),
-  bitPeriodVal: document.getElementById('bitPeriodVal'),
+  bitPeriodNum: document.getElementById('bitPeriodNum'),
   screenBitPeriodRange: document.getElementById('screenBitPeriodRange'),
-  screenBitPeriodVal: document.getElementById('screenBitPeriodVal'),
+  screenBitPeriodNum: document.getElementById('screenBitPeriodNum'),
   torchOffsetRange: document.getElementById('torchOffsetRange'),
-  torchOffsetVal: document.getElementById('torchOffsetVal'),
+  torchOffsetNum: document.getElementById('torchOffsetNum'),
   screenCountdownRange: document.getElementById('screenCountdownRange'),
-  screenCountdownVal: document.getElementById('screenCountdownVal'),
+  screenCountdownNum: document.getElementById('screenCountdownNum'),
   dateRefSelect: document.getElementById('dateRefSelect'),
   chkTxDurationComp: document.getElementById('chkTxDurationComp'),
   chkFeedback: document.getElementById('chkFeedback'),
@@ -554,7 +554,7 @@ async function handleInitTorch() {
       if (bench.needsAdjustment) {
         state.bitPeriodMs = bench.recommendedBitPeriodMs;
         el.bitPeriodRange.value = String(state.bitPeriodMs);
-        el.bitPeriodVal.textContent = `${state.bitPeriodMs} ms`;
+        el.bitPeriodNum.value = String(state.bitPeriodMs);
         saveStorage(STORAGE_KEYS.bitPeriod, state.bitPeriodMs);
         setTxStatus(
           state.t('torchStatusBenchAdjusted', {
@@ -1321,40 +1321,93 @@ function initControls() {
     });
   }
 
-  // Calibration controls
-  el.bitPeriodRange.value = String(state.bitPeriodMs);
-  el.bitPeriodVal.textContent = `${state.bitPeriodMs} ms`;
-  el.bitPeriodRange.addEventListener('input', () => {
-    state.bitPeriodMs = Number(el.bitPeriodRange.value);
-    el.bitPeriodVal.textContent = `${state.bitPeriodMs} ms`;
-    saveStorage(STORAGE_KEYS.bitPeriod, state.bitPeriodMs);
-    updateTorchStatusUI();
-    updateInspector();
+  // Calibration controls (two-way synced slider + numeric input)
+  function bindRangeNumberPair({ rangeEl, numEl, min, max, initialValue, onCommit }) {
+    const syncDisplay = (v) => {
+      rangeEl.value = String(v);
+      numEl.value = String(v);
+    };
+    const clampInt = (raw) => Math.max(min, Math.min(max, Math.round(raw)));
+
+    syncDisplay(clampInt(initialValue));
+
+    rangeEl.addEventListener('input', () => {
+      const val = clampInt(Number(rangeEl.value));
+      numEl.value = String(val);
+      onCommit(val);
+    });
+
+    numEl.addEventListener('input', () => {
+      const raw = numEl.value.trim();
+      if (raw === '' || raw === '-') return;
+      const parsed = Number(raw);
+      if (!Number.isFinite(parsed)) return;
+      if (parsed >= min && parsed <= max) {
+        const val = Math.round(parsed);
+        rangeEl.value = String(val);
+        onCommit(val);
+      }
+    });
+
+    numEl.addEventListener('change', () => {
+      const parsed = Number(numEl.value);
+      const val = Number.isFinite(parsed) ? clampInt(parsed) : clampInt(Number(rangeEl.value));
+      syncDisplay(val);
+      onCommit(val);
+    });
+
+    return syncDisplay;
+  }
+
+  const syncBitPeriod = bindRangeNumberPair({
+    rangeEl: el.bitPeriodRange,
+    numEl: el.bitPeriodNum,
+    min: WOP.MIN_BIT_PERIOD_MS,
+    max: WOP.MAX_BIT_PERIOD_MS,
+    initialValue: state.bitPeriodMs,
+    onCommit: (val) => {
+      state.bitPeriodMs = val;
+      saveStorage(STORAGE_KEYS.bitPeriod, val);
+      updateTorchStatusUI();
+      updateInspector();
+    },
   });
 
-  el.screenBitPeriodRange.value = String(state.screenBitPeriodMs);
-  el.screenBitPeriodVal.textContent = `${state.screenBitPeriodMs} ms`;
-  el.screenBitPeriodRange.addEventListener('input', () => {
-    state.screenBitPeriodMs = Number(el.screenBitPeriodRange.value);
-    el.screenBitPeriodVal.textContent = `${state.screenBitPeriodMs} ms`;
-    saveStorage(STORAGE_KEYS.screenBitPeriod, state.screenBitPeriodMs);
-    updateInspector();
+  const syncScreenBitPeriod = bindRangeNumberPair({
+    rangeEl: el.screenBitPeriodRange,
+    numEl: el.screenBitPeriodNum,
+    min: WOP.MIN_BIT_PERIOD_MS,
+    max: WOP.MAX_BIT_PERIOD_MS,
+    initialValue: state.screenBitPeriodMs,
+    onCommit: (val) => {
+      state.screenBitPeriodMs = val;
+      saveStorage(STORAGE_KEYS.screenBitPeriod, val);
+      updateInspector();
+    },
   });
 
-  el.torchOffsetRange.value = String(state.torchOffsetMs);
-  el.torchOffsetVal.textContent = `${state.torchOffsetMs} ms`;
-  el.torchOffsetRange.addEventListener('input', () => {
-    state.torchOffsetMs = Number(el.torchOffsetRange.value);
-    el.torchOffsetVal.textContent = `${state.torchOffsetMs} ms`;
-    saveStorage(STORAGE_KEYS.torchOffset, state.torchOffsetMs);
+  const syncTorchOffset = bindRangeNumberPair({
+    rangeEl: el.torchOffsetRange,
+    numEl: el.torchOffsetNum,
+    min: -20,
+    max: WOP.MAX_OFFSET_MS,
+    initialValue: state.torchOffsetMs,
+    onCommit: (val) => {
+      state.torchOffsetMs = val;
+      saveStorage(STORAGE_KEYS.torchOffset, val);
+    },
   });
 
-  el.screenCountdownRange.value = String(state.screenCountdownSec);
-  el.screenCountdownVal.textContent = `${state.screenCountdownSec} s`;
-  el.screenCountdownRange.addEventListener('input', () => {
-    state.screenCountdownSec = Number(el.screenCountdownRange.value);
-    el.screenCountdownVal.textContent = `${state.screenCountdownSec} s`;
-    saveStorage(STORAGE_KEYS.screenCountdown, state.screenCountdownSec);
+  const syncScreenCountdown = bindRangeNumberPair({
+    rangeEl: el.screenCountdownRange,
+    numEl: el.screenCountdownNum,
+    min: 0,
+    max: 10,
+    initialValue: state.screenCountdownSec,
+    onCommit: (val) => {
+      state.screenCountdownSec = val;
+      saveStorage(STORAGE_KEYS.screenCountdown, val);
+    },
   });
 
   el.dateRefSelect.value = state.dateRef;
@@ -1405,14 +1458,10 @@ function initControls() {
     state.dateRef = 'utc';
     state.customTimeEnabled = false;
 
-    el.bitPeriodRange.value = String(state.bitPeriodMs);
-    el.bitPeriodVal.textContent = `${state.bitPeriodMs} ms`;
-    el.screenBitPeriodRange.value = String(state.screenBitPeriodMs);
-    el.screenBitPeriodVal.textContent = `${state.screenBitPeriodMs} ms`;
-    el.torchOffsetRange.value = String(state.torchOffsetMs);
-    el.torchOffsetVal.textContent = `${state.torchOffsetMs} ms`;
-    el.screenCountdownRange.value = String(state.screenCountdownSec);
-    el.screenCountdownVal.textContent = `${state.screenCountdownSec} s`;
+    syncBitPeriod(state.bitPeriodMs);
+    syncScreenBitPeriod(state.screenBitPeriodMs);
+    syncTorchOffset(state.torchOffsetMs);
+    syncScreenCountdown(state.screenCountdownSec);
     el.dateRefSelect.value = state.dateRef;
     el.chkTxDurationComp.checked = true;
     el.chkFeedback.checked = true;
