@@ -25,8 +25,13 @@ import {
   classifyCameraError,
   detectTorchCapability,
   detectHdrDisplaySupport,
+  detectCameraPresence,
+  snapRefreshRateHz,
+  measureDisplayRefreshRate,
+  recommendScreenBitPeriodFromHz,
 } from '../js/flash-driver.js';
 import { computeClockOffsetMs } from '../js/time-sync.js';
+import { TRANSLATIONS, createTranslator } from '../js/i18n.js';
 
 test('ProtHeader matches 117 << 1 = 11101010', () => {
   assert.equal(bitsToString(encodeHeader()), '11101010');
@@ -601,4 +606,197 @@ test('detectHdrDisplaySupport reports HDR only when matchMedia("(dynamic-range: 
   } finally {
     delete globalThis.window;
   }
+});
+
+test('snapRefreshRateHz snaps to standard display rates within ±4.5% and rejects invalid input', () => {
+  assert.equal(snapRefreshRateHz(60.1), 60);
+  assert.equal(snapRefreshRateHz(59.94), 60);
+  assert.equal(snapRefreshRateHz(119.8), 120);
+  assert.equal(snapRefreshRateHz(143.9), 144);
+  assert.equal(snapRefreshRateHz(75.2), 75);
+  assert.equal(snapRefreshRateHz(165), 165);
+  // Off-grid rates round to the nearest integer, clamped to [24, 360]
+  assert.equal(snapRefreshRateHz(280.4), 280);
+  assert.equal(snapRefreshRateHz(500), 360);
+  assert.equal(snapRefreshRateHz(10), 24);
+  for (const invalid of [0, -60, NaN, Infinity, null, undefined, '60']) {
+    assert.equal(snapRefreshRateHz(invalid), null, `invalid ${String(invalid)}`);
+  }
+});
+
+test('recommendScreenBitPeriodFromHz picks frame-locked integer periods with minimal quantization error', () => {
+  assert.deepEqual(recommendScreenBitPeriodFromHz(60), { bitPeriodMs: 50, framesPerBit: 3, exactMs: 50, errorMs: 0 });
+  assert.deepEqual(recommendScreenBitPeriodFromHz(75), { bitPeriodMs: 40, framesPerBit: 3, exactMs: 40, errorMs: 0 });
+  assert.deepEqual(recommendScreenBitPeriodFromHz(100), { bitPeriodMs: 30, framesPerBit: 3, exactMs: 30, errorMs: 0 });
+  assert.deepEqual(recommendScreenBitPeriodFromHz(120), { bitPeriodMs: 50, framesPerBit: 6, exactMs: 50, errorMs: 0 });
+  assert.deepEqual(recommendScreenBitPeriodFromHz(240), { bitPeriodMs: 50, framesPerBit: 12, exactMs: 50, errorMs: 0 });
+
+  for (const hz of [90, 144, 165, 240]) {
+    const rec = recommendScreenBitPeriodFromHz(hz);
+    assert.ok(Number.isInteger(rec.bitPeriodMs), `${hz} Hz integer period`);
+    assert.ok(rec.bitPeriodMs >= 30 && rec.bitPeriodMs <= 60, `${hz} Hz period ${rec.bitPeriodMs} in [30..60]`);
+    assert.ok(rec.framesPerBit >= 2);
+    assert.ok(Math.abs(rec.exactMs - (rec.framesPerBit * 1000) / hz) < 0.001);
+    assert.ok(rec.errorMs < 0.5);
+  }
+  assert.deepEqual(recommendScreenBitPeriodFromHz(90), { bitPeriodMs: 33, framesPerBit: 3, exactMs: 33.333, errorMs: 0.333 });
+  assert.deepEqual(recommendScreenBitPeriodFromHz(144), { bitPeriodMs: 35, framesPerBit: 5, exactMs: 34.722, errorMs: 0.278 });
+  assert.deepEqual(recommendScreenBitPeriodFromHz(165), { bitPeriodMs: 30, framesPerBit: 5, exactMs: 30.303, errorMs: 0.303 });
+
+  // Throttled 30 Hz rendering cannot fit 2 frames in 60 ms -> shortest 2-frame period
+  assert.deepEqual(recommendScreenBitPeriodFromHz(30), { bitPeriodMs: 67, framesPerBit: 2, exactMs: 66.667, errorMs: 0.333 });
+
+  const fallback = { bitPeriodMs: 50, framesPerBit: null, exactMs: 50, errorMs: null };
+  for (const invalid of [null, undefined, 0, -60, NaN, Infinity]) {
+    assert.deepEqual(recommendScreenBitPeriodFromHz(invalid), fallback);
+  }
+});
+
+async function withMockAnimationFrames(timestamps, fn) {
+  let next = 0;
+  let id = 0;
+  globalThis.requestAnimationFrame = (cb) => {
+    id += 1;
+    const ts = timestamps[next++];
+    if (ts !== undefined) {
+      setImmediate(() => cb(ts));
+    }
+    return id;
+  };
+  globalThis.cancelAnimationFrame = () => {};
+  try {
+    return await fn();
+  } finally {
+    delete globalThis.requestAnimationFrame;
+    delete globalThis.cancelAnimationFrame;
+  }
+}
+
+function frameTimeline(hz, count, { start = 1000, jitterMs = 0 } = {}) {
+  const frameMs = 1000 / hz;
+  return Array.from({ length: count }, (_, k) => start + k * frameMs + (k % 2 ? jitterMs : -jitterMs));
+}
+
+test('measureDisplayRefreshRate measures 60 Hz and 120 Hz rAF timelines', async () => {
+  const at60 = await withMockAnimationFrames(frameTimeline(60, 40, { jitterMs: 0.2 }), () =>
+    measureDisplayRefreshRate(),
+  );
+  assert.equal(at60.hz, 60);
+  assert.ok(Math.abs(at60.frameMs - 16.667) < 0.5, `frameMs ${at60.frameMs}`);
+  assert.ok(Math.abs(at60.rawHz - 60) < 2, `rawHz ${at60.rawHz}`);
+
+  const at120 = await withMockAnimationFrames(frameTimeline(120, 40, { jitterMs: 0.15 }), () =>
+    measureDisplayRefreshRate({ sampleFrames: 30 }),
+  );
+  assert.equal(at120.hz, 120);
+  assert.ok(Math.abs(at120.frameMs - 8.333) < 0.3, `frameMs ${at120.frameMs}`);
+});
+
+test('measureDisplayRefreshRate discards warm-up frame and rejects stall / duplicate outliers', async () => {
+  // Without discarding the warm-up frame the first delta (40 ms) would dominate the median
+  const warm = await withMockAnimationFrames([0, 40, 80, 96.667, 113.333, 130], () =>
+    measureDisplayRefreshRate({ sampleFrames: 3 }),
+  );
+  assert.equal(warm.hz, 60);
+
+  const f = 1000 / 60;
+  const timeline = [0, 500];
+  let t = 500;
+  for (let k = 0; k < 30; k++) {
+    if (k === 5) t += 250; // >100 ms tab/GC stall
+    else if (k === 9) t += 0.4; // <1 ms duplicate callback
+    else if (k === 14 || k === 20) t += 2 * f; // occasional dropped frame
+    else t += f;
+    timeline.push(t);
+  }
+  const res = await withMockAnimationFrames(timeline, () => measureDisplayRefreshRate({ sampleFrames: 24 }));
+  assert.equal(res.hz, 60);
+  assert.ok(Math.abs(res.frameMs - f) < 0.01, `frameMs ${res.frameMs}`);
+});
+
+test('measureDisplayRefreshRate resolves null without rAF, while hidden, or on timeout', async () => {
+  assert.equal(typeof globalThis.requestAnimationFrame, 'undefined');
+  assert.equal(await measureDisplayRefreshRate(), null);
+
+  assert.equal(
+    await withMockAnimationFrames([], () => measureDisplayRefreshRate({ timeoutMs: 20 })),
+    null,
+  );
+
+  globalThis.document = { hidden: true };
+  try {
+    let rafCalls = 0;
+    const res = await withMockAnimationFrames(frameTimeline(60, 40), () => {
+      const orig = globalThis.requestAnimationFrame;
+      globalThis.requestAnimationFrame = (cb) => {
+        rafCalls++;
+        return orig(cb);
+      };
+      return measureDisplayRefreshRate();
+    });
+    assert.equal(res, null);
+    assert.equal(rafCalls, 0);
+  } finally {
+    delete globalThis.document;
+  }
+});
+
+test('detectCameraPresence counts video inputs passively and returns null without enumerateDevices', async () => {
+  const original = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
+  const setNavigator = (value) =>
+    Object.defineProperty(globalThis, 'navigator', { value, configurable: true, writable: true });
+  try {
+    setNavigator({
+      mediaDevices: {
+        enumerateDevices: async () => [
+          { kind: 'audioinput' },
+          { kind: 'videoinput' },
+          { kind: 'videoinput' },
+        ],
+      },
+    });
+    assert.deepEqual(await detectCameraPresence(), { hasVideoInput: true, videoInputCount: 2 });
+
+    setNavigator({ mediaDevices: { enumerateDevices: async () => [{ kind: 'audiooutput' }] } });
+    assert.deepEqual(await detectCameraPresence(), { hasVideoInput: false, videoInputCount: 0 });
+
+    setNavigator({
+      mediaDevices: {
+        enumerateDevices: async () => {
+          throw new Error('blocked');
+        },
+      },
+    });
+    assert.equal(await detectCameraPresence(), null);
+
+    setNavigator({});
+    assert.equal(await detectCameraPresence(), null);
+  } finally {
+    if (original) {
+      Object.defineProperty(globalThis, 'navigator', original);
+    } else {
+      delete globalThis.navigator;
+    }
+  }
+});
+
+test('EN and PL translations define identical keys and placeholders; frame plurals follow CLDR', () => {
+  const enKeys = Object.keys(TRANSLATIONS.en).sort();
+  const plKeys = Object.keys(TRANSLATIONS.pl).sort();
+  assert.deepEqual(plKeys, enKeys);
+
+  const placeholders = (s) => [...s.matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort();
+  for (const key of enKeys) {
+    assert.deepEqual(placeholders(TRANSLATIONS.pl[key]), placeholders(TRANSLATIONS.en[key]), key);
+  }
+
+  const en = createTranslator('en');
+  const pl = createTranslator('pl');
+  assert.equal(en.plural('framesUnit', 1), 'frame');
+  assert.equal(en.plural('framesUnit', 6), 'frames');
+  assert.equal(pl.plural('framesUnit', 1), 'klatka');
+  assert.equal(pl.plural('framesUnit', 3), 'klatki');
+  assert.equal(pl.plural('framesUnit', 6), 'klatek');
+  assert.equal(pl.plural('framesUnit', 12), 'klatek');
+  assert.equal(pl.plural('framesUnit', 22), 'klatki');
 });

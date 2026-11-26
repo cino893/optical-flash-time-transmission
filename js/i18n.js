@@ -22,6 +22,14 @@ export const TRANSLATIONS = {
       'Desktop browser detected — Screen / Monitor Flash mode is selected. Set monitor brightness to 100% and hold the watch dial close to the flashing white area.',
     torchStatusScreenActive:
       'Screen / Monitor Flash mode selected. Set screen brightness to 100% and hold the watch dial close to the flashing area.',
+    torchStatusAutoScreenIos:
+      'iOS detected — Screen / Monitor Flash was selected automatically (iOS Safari does not expose the rear LED flashlight to web pages). Set screen brightness to 100% and hold the watch dial close to the flashing area.',
+    torchStatusAutoScreenInsecure:
+      'Rear LED flashlight requires HTTPS — Screen / Monitor Flash was selected automatically. Set screen brightness to 100% and hold the watch dial close to the flashing area.',
+    torchStatusAutoScreenUnsupported:
+      'This browser does not expose the camera API — Screen / Monitor Flash was selected automatically. Set screen brightness to 100% and hold the watch dial close to the flashing area.',
+    torchStatusAutoScreenNoCamera:
+      'No camera detected on this device — Screen / Monitor Flash was selected automatically. Set screen brightness to 100% and hold the watch dial close to the flashing area.',
     torchStatusChecking: 'Tap "Enable Camera / LED" or Transmit to check rear LED flashlight support.',
     torchStatusReady: 'Rear LED flashlight is ready.',
     torchStatusBenchmarking: 'Measuring rear LED toggle latency...',
@@ -83,14 +91,44 @@ export const TRANSLATIONS = {
     step2:
       'Choose your <strong>Home (T1)</strong> or <strong>Travel (T2)</strong> timezone. UTC time, date, standard offset, and yearly DST dates are encoded automatically.',
     step3:
-      '<strong>Android LED:</strong> Hold the phone\'s rear LED flashlight 2–5 cm directly above the optical sensor hidden inside the "1" of "12" on the dial.<br><strong>iOS / Phone Screen / Monitor:</strong> Set screen brightness to 100%, dim room lighting, and hold the watch dial right up to the white/black flashing area.',
+      '<strong>Android LED:</strong> Hold the phone\'s rear LED flashlight 2–5 cm directly above the optical sensor hidden inside the "1" of "12" on the dial.<br><strong>iOS / Phone Screen / Monitor:</strong> <strong class="brightness-alert">Set screen brightness to 100%</strong>, dim room lighting, and hold the watch dial right up to the white/black flashing area.',
     step4:
       'Tap <strong>Transmit</strong> and keep the watch steady for ~2–4 seconds until the hands move to the new time.',
     advancedTitle: 'Calibration & Protocol Inspector',
     bitPeriodLabel: 'Rear LED bit period (ms)',
     bitPeriodHelp: 'Default is 30 ms (Longines standard). Valid WOP range: 10–100 ms. Auto-adjusted if slow LED hardware is detected.',
     screenBitPeriodLabel: 'Screen / Monitor bit period (ms)',
-    screenBitPeriodHelp: 'Default is 50 ms (~3 frames on 60 Hz LCD monitors) for crisp black/white contrast. Valid range: 10–100 ms.',
+    screenBitPeriodHelp: 'Auto-selected from the measured display refresh rate so every bit spans whole frames (e.g. 50 ms = 3 frames @ 60 Hz). Valid range: 10–100 ms.',
+    hzInfoMeasuring: 'Measuring display refresh rate…',
+    hzInfoAuto: 'Detected {hz} Hz ({ms} ms/frame) → auto {period} ms ({frames} {framesUnit})',
+    hzInfoManual:
+      'Detected {hz} Hz ({ms} ms/frame) → recommended {period} ms ({frames} {framesUnit}) · manual {current} ms in use',
+    hzInfoUnknown: 'Display refresh rate could not be measured — using {period} ms.',
+    framesUnit_one: 'frame',
+    framesUnit_few: 'frames',
+    framesUnit_many: 'frames',
+    framesUnit_other: 'frames',
+    hwSummaryTitle: 'Auto-detected hardware',
+    hwDisplay: 'Display',
+    hwHdrGamut: 'HDR / Gamut',
+    hwFullscreen: 'Fullscreen',
+    hwWakeLock: 'Wake Lock',
+    hwAudioHaptics: 'Audio / Haptics',
+    hwCameraTorch: 'Camera / Torch',
+    hwMeasuring: 'Measuring…',
+    hwChecking: 'Checking…',
+    hwUnknown: 'Unknown',
+    hwSupported: 'Supported',
+    hwUnsupported: 'Not supported',
+    hwAudioHapticsValue: 'Audio {audio} · Vibration {vibe}',
+    hwCameraFound: 'Camera detected',
+    hwCameraNone: 'No camera',
+    hwCameraHttps: 'HTTPS required',
+    hwCameraNoApi: 'No camera API',
+    hwTorchOk: 'LED torch ✓',
+    hwTorchNo: 'LED torch —',
+    hwTorchUntested: 'LED torch untested',
+    hwTorchIos: 'LED torch n/a (iOS)',
     torchOffsetLabel: 'Torch turn-on offset (ms)',
     torchOffsetHelp: 'Fires 0→1 rising edges earlier to compensate for LED turn-on lag (0 ms Android, 8 ms Apple).',
     txDurationCompLabel: 'Compensate transmission duration (align end to UTC second)',
@@ -142,6 +180,14 @@ export const TRANSLATIONS = {
       'Wykryto przeglądarkę desktopową — wybrano tryb błysku ekranu / monitora. Ustaw jasność monitora na 100% i przyłóż tarczę zegarka blisko migającego białego pola.',
     torchStatusScreenActive:
       'Wybrano tryb błysku ekranu / monitora. Ustaw jasność ekranu na 100% i przyłóż tarczę zegarka blisko migającego pola.',
+    torchStatusAutoScreenIos:
+      'Wykryto iOS — automatycznie wybrano Błysk ekranu / monitora (Safari na iOS nie udostępnia stronom WWW tylnej latarki LED). Ustaw jasność ekranu na 100% i przyłóż tarczę zegarka blisko migającego pola.',
+    torchStatusAutoScreenInsecure:
+      'Tylna latarka LED wymaga połączenia HTTPS — automatycznie wybrano Błysk ekranu / monitora. Ustaw jasność ekranu na 100% i przyłóż tarczę zegarka blisko migającego pola.',
+    torchStatusAutoScreenUnsupported:
+      'Ta przeglądarka nie udostępnia API kamery — automatycznie wybrano Błysk ekranu / monitora. Ustaw jasność ekranu na 100% i przyłóż tarczę zegarka blisko migającego pola.',
+    torchStatusAutoScreenNoCamera:
+      'Nie wykryto kamery w tym urządzeniu — automatycznie wybrano Błysk ekranu / monitora. Ustaw jasność ekranu na 100% i przyłóż tarczę zegarka blisko migającego pola.',
     torchStatusChecking: 'Kliknij „Włącz kamerę / LED” lub „Wyślij”, aby sprawdzić dostęp do tylnej latarki LED.',
     torchStatusReady: 'Tylna latarka LED jest gotowa.',
     torchStatusBenchmarking: 'Pomiar czasu przełączania tylnej latarki LED...',
@@ -203,14 +249,44 @@ export const TRANSLATIONS = {
     step2:
       'Wybierz strefę dla <strong>Czasu domowego (T1)</strong> lub <strong>Czasu podróży (T2)</strong>. Czas UTC, data, przesunięcie strefowe oraz daty zmiany czasu DST zostaną zakodowane automatycznie.',
     step3:
-      '<strong>Android (Latarka LED):</strong> Przytrzymaj tylną latarkę telefonu 2–5 cm bezpośrednio nad czujnikiem optycznym ukrytym w cyfrze „1” z „12” na tarczy.<br><strong>iOS / Ekran telefonu / Monitor PC:</strong> Ustaw jasność ekranu na 100%, przygaś światło w pokoju i przyłóż tarczę zegarka bezpośrednio do migającego biało-czarnego pola.',
+      '<strong>Android (Latarka LED):</strong> Przytrzymaj tylną latarkę telefonu 2–5 cm bezpośrednio nad czujnikiem optycznym ukrytym w cyfrze „1” z „12” na tarczy.<br><strong>iOS / Ekran telefonu / Monitor PC:</strong> <strong class="brightness-alert">Ustaw jasność ekranu na 100%</strong>, przygaś światło w pokoju i przyłóż tarczę zegarka bezpośrednio do migającego biało-czarnego pola.',
     step4:
       'Kliknij <strong>Wyślij</strong> i utrzymuj zegarek nieruchomo przez ok. 2–4 sekundy, aż transmisja się zakończy i wskazówki przestawią się na właściwą godzinę.',
     advancedTitle: 'Kalibracja i podgląd ramki protokołu',
     bitPeriodLabel: 'Okres bitu LED (ms)',
     bitPeriodHelp: 'Domyślnie 30 ms (standard Longines). Zakres WOP: 10–100 ms. Automatycznie zwiększany przy wolnym sterowniku LED.',
     screenBitPeriodLabel: 'Okres bitu ekranu / monitora (ms)',
-    screenBitPeriodHelp: 'Domyślnie 50 ms (~3 klatki na monitorze 60 Hz) dla wyraźnego kontrastu czerni i bieli. Zakres: 10–100 ms.',
+    screenBitPeriodHelp: 'Dobierany automatycznie na podstawie zmierzonej częstotliwości odświeżania ekranu, tak aby każdy bit trwał pełną liczbę klatek (np. 50 ms = 3 klatki przy 60 Hz). Zakres: 10–100 ms.',
+    hzInfoMeasuring: 'Pomiar częstotliwości odświeżania ekranu…',
+    hzInfoAuto: 'Wykryto {hz} Hz ({ms} ms/klatkę) → auto {period} ms ({frames} {framesUnit})',
+    hzInfoManual:
+      'Wykryto {hz} Hz ({ms} ms/klatkę) → zalecane {period} ms ({frames} {framesUnit}) · używana ręczna wartość {current} ms',
+    hzInfoUnknown: 'Nie udało się zmierzyć częstotliwości odświeżania ekranu — używane {period} ms.',
+    framesUnit_one: 'klatka',
+    framesUnit_few: 'klatki',
+    framesUnit_many: 'klatek',
+    framesUnit_other: 'klatki',
+    hwSummaryTitle: 'Automatycznie wykryty sprzęt',
+    hwDisplay: 'Ekran',
+    hwHdrGamut: 'HDR / Gama barw',
+    hwFullscreen: 'Pełny ekran',
+    hwWakeLock: 'Blokada wygaszania',
+    hwAudioHaptics: 'Dźwięk / Wibracje',
+    hwCameraTorch: 'Kamera / Latarka',
+    hwMeasuring: 'Pomiar…',
+    hwChecking: 'Sprawdzanie…',
+    hwUnknown: 'Nieznane',
+    hwSupported: 'Obsługiwane',
+    hwUnsupported: 'Nieobsługiwane',
+    hwAudioHapticsValue: 'Dźwięk {audio} · Wibracja {vibe}',
+    hwCameraFound: 'Wykryto kamerę',
+    hwCameraNone: 'Brak kamery',
+    hwCameraHttps: 'Wymagane HTTPS',
+    hwCameraNoApi: 'Brak API kamery',
+    hwTorchOk: 'Latarka LED ✓',
+    hwTorchNo: 'Latarka LED —',
+    hwTorchUntested: 'Latarka LED nieprzetestowana',
+    hwTorchIos: 'Latarka LED niedostępna (iOS)',
     torchOffsetLabel: 'Kompensacja włączenia LED (ms)',
     torchOffsetHelp: 'Wcześniejsze wyzwalanie zboczy 0→1 dla kompensacji opóźnienia diody (0 ms Android, 8 ms Apple).',
     txDurationCompLabel: 'Kompensuj czas trwania transmisji (wyrównaj koniec do pełnej sekundy UTC)',
@@ -253,7 +329,11 @@ export function detectInitialLanguage() {
 }
 
 export function createTranslator(lang) {
-  const dict = TRANSLATIONS[lang] || TRANSLATIONS.en;
+  const resolvedLang = TRANSLATIONS[lang] ? lang : 'en';
+  const dict = TRANSLATIONS[resolvedLang];
+  const hasKey = (key) =>
+    Object.prototype.hasOwnProperty.call(dict, key) ||
+    Object.prototype.hasOwnProperty.call(TRANSLATIONS.en, key);
   function t(key, vars = null) {
     let str = dict[key] ?? TRANSLATIONS.en[key] ?? key;
     if (vars) {
@@ -263,6 +343,17 @@ export function createTranslator(lang) {
     }
     return str;
   }
-  t.has = (key) => Object.prototype.hasOwnProperty.call(dict, key) || Object.prototype.hasOwnProperty.call(TRANSLATIONS.en, key);
+  t.has = hasKey;
+  // Plural-aware lookup of `${key}_${category}` (CLDR one/few/many/other), falling back to `_other`.
+  t.plural = (key, count) => {
+    let category = 'other';
+    try {
+      category = new Intl.PluralRules(resolvedLang).select(count);
+    } catch {
+      category = count === 1 ? 'one' : 'other';
+    }
+    const pluralKey = `${key}_${category}`;
+    return t(hasKey(pluralKey) ? pluralKey : `${key}_other`);
+  };
   return t;
 }

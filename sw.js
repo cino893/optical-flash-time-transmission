@@ -1,8 +1,8 @@
-const CACHE_NAME = 'wop-flash-sync-v11';
+const CACHE_NAME = 'wop-flash-sync-v12';
 const APP_ASSETS = [
   './',
   './index.html',
-  './styles.css?v=11',
+  './styles.css?v=12',
   './manifest.webmanifest',
   './favicon.ico',
   './assets/icon.svg',
@@ -11,13 +11,13 @@ const APP_ASSETS = [
   './assets/conquest-vhp-gmt-diagram.svg',
   './assets/conquest-vhp-gmt-diagram-pl.svg',
   './assets/hdr-white.png',
-  './js/app.js?v=11',
-  './js/wop-protocol.js?v=11',
-  './js/timezone-utils.js?v=11',
-  './js/flash-driver.js?v=11',
-  './js/feedback.js?v=11',
-  './js/time-sync.js?v=11',
-  './js/i18n.js?v=11',
+  './js/app.js?v=12',
+  './js/wop-protocol.js?v=12',
+  './js/timezone-utils.js?v=12',
+  './js/flash-driver.js?v=12',
+  './js/feedback.js?v=12',
+  './js/time-sync.js?v=12',
+  './js/i18n.js?v=12',
 ];
 
 self.addEventListener('install', (event) => {

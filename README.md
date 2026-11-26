@@ -49,6 +49,7 @@ The official legacy Flash Setting mobile application is no longer maintained and
 - **Audio & Haptic Cues:** Subtle Web Audio chime and vibration (`js/feedback.js`) on transmission start and completion, so you know exactly when to lift the phone while holding the rear LED face-down over the dial.
 - **Optional Network UTC Sync:** Estimates sub-second UTC offset via public HTTPS time APIs (`js/time-sync.js`) with half-RTT compensation and graceful offline fallback to the device clock.
 - **Quick Home ⇄ Travel Swap & Saved Preferences:** One-tap **Swap Home ⇄ Travel (T1 ⇄ T2)** button plus persisted light-source and timezone preferences across sessions.
+- **Passive Hardware Auto-Detection (no permission prompts):** Measures the display refresh rate via `requestAnimationFrame` (snapped to standard 24–240 Hz rates) and auto-selects a **frame-locked Screen Flash bit period** (e.g. `50 ms = 3 frames @ 60 Hz`, `40 ms = 3 frames @ 75 Hz`, `50 ms = 6 frames @ 120 Hz`) until you set one manually. Also detects HDR / color gamut, Wake Lock, Fullscreen, Web Audio / vibration, and camera presence (`enumerateDevices`), shown in a compact summary strip in Calibration. With no saved light-source preference, desktops, iOS, plain-HTTP pages, and devices without a camera start in **Screen / Monitor Flash** automatically; Android over HTTPS keeps the **Rear LED** default.
 
 ---
 
@@ -57,7 +58,7 @@ The official legacy Flash Setting mobile application is no longer maintained and
 | Mode | Default Bit Period | Availability | Notes |
 | --- | --- | --- | --- |
 | **Phone Rear LED Flashlight *(Default)*** | `30 ms` *(auto-adjusted if HAL is slower)* | Android (Chrome, Edge, Samsung Internet over HTTPS) | Primary mode matching the original app. Uses WebRTC `MediaTrackConstraints` (`torch`), automatic `benchmarkTorch` latency check, optional rear camera alignment reticle, rising-edge LED latency compensation, and immediate camera release after use. |
-| **Screen / Monitor Flash** | `50 ms` *(3 frames @ 60 Hz LCD)* | Desktop PCs, laptops, iOS Safari, any browser | Experimental full-screen pure black/white (`#000000` / `#FFFFFF`) optical flashing mode tuned to 60 Hz displays. Set brightness to 100%, dim room light, and hold the watch dial against the flashing area. On HDR/EDR-capable displays (auto-detected via `(dynamic-range: high)`), an optional **HDR peak white boost** overlays a BT.2020 PQ (`cICP`) 10,000-nit white PNG on lit bits and pre-warms EDR headroom during the countdown. *(Note: some OLED/laptop screens may not deliver enough luminous intensity for the watch's small photodiode.)* |
+| **Screen / Monitor Flash** | `50 ms` *(auto frame-locked to the measured refresh rate, e.g. 3 frames @ 60 Hz)* | Desktop PCs, laptops, iOS Safari, any browser | Experimental full-screen pure black/white (`#000000` / `#FFFFFF`) optical flashing mode; the bit period is auto-selected so each bit spans a whole number of display frames (until set manually; **Reset Defaults** restores auto). Set brightness to 100%, dim room light, and hold the watch dial against the flashing area. On HDR/EDR-capable displays (auto-detected via `(dynamic-range: high)`), an optional **HDR peak white boost** overlays a BT.2020 PQ (`cICP`) 10,000-nit white PNG on lit bits and pre-warms EDR headroom during the countdown. *(Note: some OLED/laptop screens may not deliver enough luminous intensity for the watch's small photodiode.)* |
 
 > [!NOTE]
 > **Physical-layer caveat (browser vs. native app):** The WOP v2.4 bitstream, CRC-8, bit stuffing, DST encoding, and offset compensation are verified bit-for-bit against official Longines transmissions. However, browser WebRTC `applyConstraints({ torch })` timing jitter varies across Android Camera2 HALs, iOS Safari does not expose WebRTC torch control, and displays emit less concentrated light than a camera LED. If your phone's LED shows high toggle latency, try increasing the bit period (`40–60 ms`) in Calibration, or consider a native mobile implementation (such as [ProjectL289Mobile](https://github.com/markwatson/ProjectL289Mobile)) for hardware-timed torch control.
@@ -74,7 +75,7 @@ The official legacy Flash Setting mobile application is no longer maintained and
    - **Screen / Monitor Flash:** Set display brightness to 100% and hold the dial close to the flashing white/black area.
 5. Tap **Transmit** and keep steady for ~2–4 seconds until the completion chime/vibration sounds and the hands adjust.
 
-*(Advanced timing calibration — per-mode bit period, LED turn-on offset, audio/haptic cue toggle, HDR peak white boost (auto-enabled on HDR displays), manual UTC override, and live protocol frame inspector — is kept discreetly collapsed at the bottom of the page.)*
+*(Advanced timing calibration — auto-detected hardware summary, per-mode bit period (Screen Flash auto frame-locked to the display refresh rate), LED turn-on offset, audio/haptic cue toggle, HDR peak white boost (auto-enabled on HDR displays), manual UTC override, and live protocol frame inspector — is kept discreetly collapsed at the bottom of the page.)*
 
 ---
 
@@ -109,7 +110,7 @@ Reverse-engineered clean-room specification implemented in [`js/wop-protocol.js`
 ├── js/
 │   ├── wop-protocol.js                  # WOP v2.4 frame encoder, CRC-8, bit stuffing & scheduling
 │   ├── timezone-utils.js                # IANA timezone & automatic DST transition detector
-│   ├── flash-driver.js                  # Rear LED torch driver (benchmarkTorch + auto-release) & screen flash
+│   ├── flash-driver.js                  # Rear LED torch driver, screen flash, passive capability & refresh-rate detection
 │   ├── feedback.js                      # Audio & haptic feedback cues for start/completion
 │   ├── time-sync.js                     # Optional HTTPS network UTC clock sync with offline fallback
 │   ├── i18n.js                          # English & Polish translations

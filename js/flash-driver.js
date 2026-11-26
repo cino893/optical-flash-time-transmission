@@ -5,11 +5,14 @@
  *
  * Implements non-drifting absolute-time bit scheduling using performance.now() and only toggles
  * the hardware torch when the bit value actually changes (matching WOP Torchlight.on/off).
+ * Also provides passive (prompt-free) capability detection and display refresh-rate measurement
+ * used to pick a frame-locked Screen Flash bit period.
  */
 
 import { buildBitSchedule } from './wop-protocol.js';
 
 export function isLikelyIOS() {
+  if (typeof navigator === 'undefined') return false;
   const ua = navigator.userAgent || '';
   const platform = navigator.platform || '';
   return (
@@ -19,6 +22,7 @@ export function isLikelyIOS() {
 }
 
 export function isLikelyMobile() {
+  if (typeof navigator === 'undefined') return false;
   const ua = navigator.userAgent || '';
   return isLikelyIOS() || /Android|webOS|BlackBerry|IEMobile|Opera Mini/i.test(ua);
 }
@@ -40,9 +44,33 @@ export function detectHdrDisplaySupport() {
   }
 }
 
+/**
+ * Widest color gamut reported by the display: 'rec2020' | 'p3' | 'srgb'.
+ */
+export function detectColorGamut() {
+  try {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+      return 'srgb';
+    }
+    if (window.matchMedia('(color-gamut: rec2020)').matches) return 'rec2020';
+    if (window.matchMedia('(color-gamut: p3)').matches) return 'p3';
+  } catch {
+    // ignore unsupported media query
+  }
+  return 'srgb';
+}
+
+/**
+ * Purely synchronous, passive capability detection (never triggers a permission prompt).
+ */
 export function detectEnvironment() {
-  const secureContext = Boolean(window.isSecureContext);
-  const hasMediaDevices = Boolean(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+  const hasWindow = typeof window !== 'undefined';
+  const hasNavigator = typeof navigator !== 'undefined';
+  const hasDocument = typeof document !== 'undefined';
+  const secureContext = Boolean(hasWindow && window.isSecureContext);
+  const hasMediaDevices = Boolean(
+    hasNavigator && navigator.mediaDevices && navigator.mediaDevices.getUserMedia,
+  );
   const ios = isLikelyIOS();
   const mobile = isLikelyMobile();
   return {
@@ -51,7 +79,250 @@ export function detectEnvironment() {
     ios,
     mobile,
     hdrSupported: detectHdrDisplaySupport(),
+    colorGamut: detectColorGamut(),
+    hasWakeLock: Boolean(hasNavigator && 'wakeLock' in navigator && navigator.wakeLock?.request),
+    hasVibration: Boolean(hasNavigator && typeof navigator.vibrate === 'function'),
+    hasWebAudio: Boolean(hasWindow && (window.AudioContext || window.webkitAudioContext)),
+    hasFullscreen: Boolean(
+      hasDocument &&
+        (document.fullscreenEnabled ||
+          typeof document.documentElement?.requestFullscreen === 'function'),
+    ),
+    devicePixelRatio: hasWindow ? window.devicePixelRatio || 1 : 1,
   };
+}
+
+/**
+ * Passive camera presence check via enumerateDevices() — never prompts for permission.
+ * Resolves to `{ hasVideoInput, videoInputCount }`, or `null` when the API is unavailable/fails.
+ */
+export async function detectCameraPresence() {
+  try {
+    const mediaDevices = typeof navigator !== 'undefined' ? navigator.mediaDevices : null;
+    if (!mediaDevices || typeof mediaDevices.enumerateDevices !== 'function') {
+      return null;
+    }
+    const devices = await mediaDevices.enumerateDevices();
+    if (!Array.isArray(devices)) {
+      return null;
+    }
+    const videoInputCount = devices.filter((d) => d && d.kind === 'videoinput').length;
+    return { hasVideoInput: videoInputCount > 0, videoInputCount };
+  } catch {
+    return null;
+  }
+}
+
+// ---------- Display refresh rate detection & frame-locked screen bit period ----------
+
+export const STANDARD_REFRESH_RATES_HZ = [24, 30, 48, 50, 60, 72, 75, 90, 100, 120, 144, 165, 240];
+const REFRESH_SNAP_TOLERANCE = 0.045;
+const MIN_REFRESH_HZ = 24;
+const MAX_REFRESH_HZ = 360;
+const MAX_FRAME_DELTA_MS = 100;
+const MIN_FRAME_DELTA_MS = 1;
+
+export const DEFAULT_SCREEN_BIT_PERIOD_MS = 50;
+const SCREEN_PERIOD_MIN_MS = 30;
+const SCREEN_PERIOD_MAX_MS = 60;
+const SCREEN_PERIOD_PREFERRED_MAX_MS = 50;
+const SCREEN_PERIOD_EXTENDED_MAX_MS = 100;
+
+const round3 = (v) => Math.round(v * 1000) / 1000;
+
+/**
+ * Snap a measured refresh rate to the nearest standard rate when within ±4.5%,
+ * otherwise round to the nearest integer clamped to [24, 360]. Invalid input → null.
+ */
+export function snapRefreshRateHz(rawHz) {
+  if (typeof rawHz !== 'number' || !Number.isFinite(rawHz) || rawHz <= 0) {
+    return null;
+  }
+  let best = null;
+  let bestRel = Infinity;
+  for (const std of STANDARD_REFRESH_RATES_HZ) {
+    const rel = Math.abs(rawHz - std) / std;
+    if (rel < bestRel) {
+      bestRel = rel;
+      best = std;
+    }
+  }
+  if (bestRel <= REFRESH_SNAP_TOLERANCE) {
+    return best;
+  }
+  return Math.round(Math.min(MAX_REFRESH_HZ, Math.max(MIN_REFRESH_HZ, rawHz)));
+}
+
+function isDocumentHidden() {
+  return typeof document !== 'undefined' && Boolean(document.hidden);
+}
+
+/**
+ * Measure the display refresh rate from requestAnimationFrame deltas.
+ * Discards the warm-up frame and outlier deltas (> 100 ms pauses or < 1 ms duplicates).
+ * Resolves to `{ hz, rawHz, frameMs }` or `null` when rAF is unavailable, the page is
+ * (or becomes) hidden, or the timeout fires before enough frames were sampled.
+ */
+export function measureDisplayRefreshRate({ sampleFrames = 24, timeoutMs = 1200 } = {}) {
+  const raf =
+    typeof globalThis.requestAnimationFrame === 'function'
+      ? globalThis.requestAnimationFrame.bind(globalThis)
+      : null;
+  if (!raf || isDocumentHidden()) {
+    return Promise.resolve(null);
+  }
+  const caf =
+    typeof globalThis.cancelAnimationFrame === 'function'
+      ? globalThis.cancelAnimationFrame.bind(globalThis)
+      : null;
+  const targetSamples = Number.isFinite(sampleFrames) ? Math.max(3, Math.floor(sampleFrames)) : 24;
+  const minPartialSamples = Math.max(5, Math.ceil(targetSamples / 2));
+  const waitMs = Number.isFinite(timeoutMs) ? Math.max(0, timeoutMs) : 1200;
+
+  return new Promise((resolve) => {
+    const deltas = [];
+    let warmedUp = false;
+    let prevTs = null;
+    let rafId = null;
+    let timer = null;
+    let done = false;
+
+    const summarize = () => {
+      if (!deltas.length) return null;
+      const medianFrameMs = median(deltas);
+      if (!(medianFrameMs > 0)) return null;
+      const rawHz = 1000 / medianFrameMs;
+      const hz = snapRefreshRateHz(rawHz);
+      if (!hz) return null;
+      return {
+        hz,
+        rawHz: Number(rawHz.toFixed(2)),
+        frameMs: Number(medianFrameMs.toFixed(3)),
+      };
+    };
+
+    const finish = (result) => {
+      if (done) return;
+      done = true;
+      if (timer !== null) clearTimeout(timer);
+      if (rafId !== null && caf) {
+        try {
+          caf(rafId);
+        } catch {
+          // ignore
+        }
+      }
+      resolve(result);
+    };
+
+    const onFrame = (ts) => {
+      rafId = null;
+      if (done) return;
+      if (isDocumentHidden()) {
+        finish(null);
+        return;
+      }
+      const now = Number.isFinite(ts) ? ts : performance.now();
+      if (!warmedUp) {
+        warmedUp = true;
+      } else if (prevTs === null) {
+        prevTs = now;
+      } else {
+        const delta = now - prevTs;
+        prevTs = now;
+        if (delta >= MIN_FRAME_DELTA_MS && delta <= MAX_FRAME_DELTA_MS) {
+          deltas.push(delta);
+        }
+      }
+      if (deltas.length >= targetSamples) {
+        finish(summarize());
+        return;
+      }
+      try {
+        rafId = raf(onFrame);
+      } catch {
+        finish(null);
+      }
+    };
+
+    timer = setTimeout(() => {
+      finish(deltas.length >= minPartialSamples ? summarize() : null);
+    }, waitMs);
+
+    try {
+      rafId = raf(onFrame);
+    } catch {
+      finish(null);
+    }
+  });
+}
+
+function screenPeriodBandDistance(ms) {
+  if (ms < SCREEN_PERIOD_MIN_MS) return SCREEN_PERIOD_MIN_MS - ms;
+  if (ms > SCREEN_PERIOD_PREFERRED_MAX_MS) return ms - SCREEN_PERIOD_PREFERRED_MAX_MS;
+  return 0;
+}
+
+function pickFrameLockedPeriod(frameMs, minMs, maxMs, { shortestFirst = false } = {}) {
+  let best = null;
+  for (let frames = 2; frames * frameMs <= maxMs + 0.5; frames++) {
+    const exact = frames * frameMs;
+    const bitPeriodMs = Math.round(exact);
+    if (bitPeriodMs < minMs || bitPeriodMs > maxMs) continue;
+    const cand = {
+      bitPeriodMs,
+      framesPerBit: frames,
+      exactMs: round3(exact),
+      errorMs: round3(Math.abs(bitPeriodMs - exact)),
+    };
+    if (shortestFirst) {
+      return cand;
+    }
+    if (!best) {
+      best = cand;
+      continue;
+    }
+    const candExact = cand.errorMs < 0.005;
+    const bestExact = best.errorMs < 0.005;
+    let better;
+    if (candExact !== bestExact) {
+      better = candExact;
+    } else if (!candExact && Math.abs(cand.errorMs - best.errorMs) > 1e-9) {
+      better = cand.errorMs < best.errorMs;
+    } else {
+      const dc = screenPeriodBandDistance(cand.bitPeriodMs);
+      const db = screenPeriodBandDistance(best.bitPeriodMs);
+      better = dc !== db ? dc < db : cand.bitPeriodMs < best.bitPeriodMs;
+    }
+    if (better) best = cand;
+  }
+  return best;
+}
+
+/**
+ * Pick the cleanest integer screen bit period in [30..60] ms spanning an integer number
+ * of display frames (>= 2): exact multiples first, then minimal quantization error,
+ * then closest to the 30–50 ms band (shorter wins ties). Very low refresh rates
+ * (< ~34 Hz) fall back to the shortest (2-frame) period up to 100 ms.
+ */
+export function recommendScreenBitPeriodFromHz(hz) {
+  const fallback = {
+    bitPeriodMs: DEFAULT_SCREEN_BIT_PERIOD_MS,
+    framesPerBit: null,
+    exactMs: DEFAULT_SCREEN_BIT_PERIOD_MS,
+    errorMs: null,
+  };
+  if (typeof hz !== 'number' || !Number.isFinite(hz) || hz <= 0 || hz > 1000) {
+    return fallback;
+  }
+  const frameMs = 1000 / hz;
+  return (
+    pickFrameLockedPeriod(frameMs, SCREEN_PERIOD_MIN_MS, SCREEN_PERIOD_MAX_MS) ||
+    pickFrameLockedPeriod(frameMs, SCREEN_PERIOD_MAX_MS + 1, SCREEN_PERIOD_EXTENDED_MAX_MS, {
+      shortestFirst: true,
+    }) ||
+    fallback
+  );
 }
 
 export function classifyCameraError(err) {

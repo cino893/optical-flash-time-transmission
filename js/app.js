@@ -3,31 +3,34 @@ import {
   buildWopFrame,
   buildAutoSyncedFrame,
   bitsToString,
-} from './wop-protocol.js?v=11';
+} from './wop-protocol.js?v=12';
 import {
   analyzeTimezone,
   getSupportedTimezones,
   getLocalSystemTimezone,
   getLocalParts,
   formatUtcOffset,
-} from './timezone-utils.js?v=11';
+} from './timezone-utils.js?v=12';
 import {
   OpticalFlashDriver,
   detectEnvironment,
   detectHdrDisplaySupport,
+  detectColorGamut,
+  detectCameraPresence,
+  measureDisplayRefreshRate,
+  recommendScreenBitPeriodFromHz,
   classifyCameraError,
   HDR_MEDIA_QUERY,
-} from './flash-driver.js?v=11';
-import { detectInitialLanguage, createTranslator } from './i18n.js?v=11';
-import { syncNetworkUtcOffset } from './time-sync.js?v=11';
+  DEFAULT_SCREEN_BIT_PERIOD_MS,
+} from './flash-driver.js?v=12';
+import { detectInitialLanguage, createTranslator } from './i18n.js?v=12';
+import { syncNetworkUtcOffset } from './time-sync.js?v=12';
 import {
   unlockFeedbackAudio,
   feedbackStart,
   feedbackSuccess,
   feedbackError,
-} from './feedback.js?v=11';
-
-const DEFAULT_SCREEN_BIT_PERIOD_MS = 50;
+} from './feedback.js?v=12';
 
 const STORAGE_KEYS = {
   lang: 'wop_lang',
@@ -64,6 +67,7 @@ const state = {
   lang: detectInitialLanguage(),
   t: null,
   lightMode: loadLightMode(),
+  lightModeAutoReason: hasSavedLightMode() ? null : getEnvScreenAutoReason(),
   homeTz: loadString(STORAGE_KEYS.homeTz, getLocalSystemTimezone()),
   travelTz: loadString(STORAGE_KEYS.travelTz, pickDefaultTravelTz(getLocalSystemTimezone())),
   bitPeriodMs: initialBitPeriodMs,
@@ -86,6 +90,13 @@ const state = {
   feedbackEnabled: loadBool(STORAGE_KEYS.feedback, true),
   dateRef: loadString(STORAGE_KEYS.dateRef, 'utc'),
   hdrBoostEnabled: loadBool(STORAGE_KEYS.hdrBoost, env.hdrSupported),
+  displayHz: null,
+  displayFrameMs: null,
+  displayHzStatus: 'idle', // idle | measuring | done | failed
+  displayMeasureTainted: false,
+  recommendedScreenPeriod: null,
+  cameraPresence: null,
+  cameraPresenceChecked: false,
   utcOffsetMs: 0,
   timeSyncInfo: null,
   timeSyncBusy: false,
@@ -156,6 +167,8 @@ const el = {
   bitPeriodNum: document.getElementById('bitPeriodNum'),
   screenBitPeriodRange: document.getElementById('screenBitPeriodRange'),
   screenBitPeriodNum: document.getElementById('screenBitPeriodNum'),
+  screenHzInfo: document.getElementById('screenHzInfo'),
+  hwDetectList: document.getElementById('hwDetectList'),
   torchOffsetRange: document.getElementById('torchOffsetRange'),
   torchOffsetNum: document.getElementById('torchOffsetNum'),
   screenCountdownRange: document.getElementById('screenCountdownRange'),
@@ -220,9 +233,27 @@ function saveStorage(key, value) {
   }
 }
 
+function hasSavedLightMode() {
+  const saved = loadString(STORAGE_KEYS.lightMode, null);
+  return saved === 'screen' || saved === 'torch';
+}
+
+/**
+ * Reason the Rear LED torch is definitely unusable without prompting (desktop, iOS,
+ * plain HTTP, or no getUserMedia), or null when the torch default should be kept.
+ */
+function getEnvScreenAutoReason() {
+  if (!env.mobile) return 'desktop';
+  if (env.ios) return 'ios';
+  if (!env.secureContext) return 'insecure';
+  if (!env.hasMediaDevices) return 'unsupported';
+  return null;
+}
+
 function loadLightMode() {
-  const saved = loadString(STORAGE_KEYS.lightMode, 'torch');
-  return saved === 'screen' ? 'screen' : 'torch';
+  const saved = loadString(STORAGE_KEYS.lightMode, null);
+  if (saved === 'screen' || saved === 'torch') return saved;
+  return getEnvScreenAutoReason() ? 'screen' : 'torch';
 }
 
 // ---------- HDR Peak White Boost (EDR) ----------
@@ -266,16 +297,253 @@ function initHdrDisplayMonitor() {
   }
   const onChange = () => {
     env.hdrSupported = detectHdrDisplaySupport();
+    env.colorGamut = detectColorGamut();
     if (hasSavedHdrBoostPreference()) {
       updateHdrBoostStatusUI();
     } else {
       setHdrBoostEnabled(env.hdrSupported);
     }
+    updateEnvBadge();
+    updateHwDetectSummary();
   };
   if (typeof mql.addEventListener === 'function') {
     mql.addEventListener('change', onChange);
   } else if (typeof mql.addListener === 'function') {
     mql.addListener(onChange);
+  }
+}
+
+// ---------- Passive Hardware Auto-Detection (refresh rate, camera presence) ----------
+
+const COLOR_GAMUT_LABELS = { rec2020: 'Rec. 2020', p3: 'Display P3', srgb: 'sRGB' };
+
+function hasSavedScreenBitPeriod() {
+  return loadString(STORAGE_KEYS.screenBitPeriod, null) !== null;
+}
+
+function getAutoScreenBitPeriodMs() {
+  const rec = state.recommendedScreenPeriod;
+  return rec && rec.framesPerBit
+    ? clampInt(rec.bitPeriodMs, WOP.MIN_BIT_PERIOD_MS, WOP.MAX_BIT_PERIOD_MS)
+    : DEFAULT_SCREEN_BIT_PERIOD_MS;
+}
+
+function setScreenBitPeriodDisplay(val) {
+  el.screenBitPeriodRange.value = String(val);
+  el.screenBitPeriodNum.value = String(val);
+}
+
+/**
+ * Apply the frame-locked recommendation unless the user saved a manual value
+ * (never persisted, so it keeps following the detected display).
+ */
+function applyAutoScreenBitPeriod() {
+  if (!state.recommendedScreenPeriod?.framesPerBit || hasSavedScreenBitPeriod() || state.transmitting) {
+    return false;
+  }
+  const next = getAutoScreenBitPeriodMs();
+  if (next !== state.screenBitPeriodMs) {
+    state.screenBitPeriodMs = next;
+    setScreenBitPeriodDisplay(next);
+    updateInspector();
+  }
+  updateScreenHzInfo();
+  return true;
+}
+
+function formatFrameMs(hz) {
+  return (1000 / hz).toFixed(1);
+}
+
+function updateEnvBadge() {
+  if (!el.envBadge) return;
+  let base;
+  if (!env.secureContext) {
+    base = 'HTTP';
+  } else {
+    base = env.ios ? 'iOS · HTTPS' : env.mobile ? 'Mobile · HTTPS' : 'Desktop · HTTPS';
+  }
+  el.envBadge.textContent = base;
+  if (state.displayHz) {
+    const hzSpan = document.createElement('span');
+    hzSpan.className = 'meta-unit';
+    hzSpan.textContent = `${state.displayHz} Hz`;
+    el.envBadge.append(' · ', hzSpan);
+  }
+  if (env.hdrSupported) {
+    el.envBadge.append(' · HDR');
+  }
+}
+
+function updateScreenHzInfo() {
+  if (!el.screenHzInfo) return;
+  const rec = state.recommendedScreenPeriod;
+  const manual = hasSavedScreenBitPeriod();
+  let text;
+  let mode = '';
+  if (state.displayHz && rec && rec.framesPerBit) {
+    mode = manual ? 'manual' : 'auto';
+    text = state.t(manual ? 'hzInfoManual' : 'hzInfoAuto', {
+      hz: state.displayHz,
+      ms: formatFrameMs(state.displayHz),
+      period: rec.bitPeriodMs,
+      frames: rec.framesPerBit,
+      framesUnit: state.t.plural('framesUnit', rec.framesPerBit),
+      current: state.screenBitPeriodMs,
+    });
+  } else if (state.displayHzStatus === 'failed') {
+    text = state.t('hzInfoUnknown', { period: state.screenBitPeriodMs });
+  } else {
+    text = state.t('hzInfoMeasuring');
+  }
+  el.screenHzInfo.textContent = text;
+  el.screenHzInfo.classList.toggle('auto', mode === 'auto');
+  el.screenHzInfo.classList.toggle('manual', mode === 'manual');
+}
+
+function getCameraTorchSummary() {
+  if (!env.secureContext) return state.t('hwCameraHttps');
+  if (!env.hasMediaDevices) return state.t('hwCameraNoApi');
+
+  let camera;
+  if (driver.hasActiveCamera || state.cameraPresence?.hasVideoInput) {
+    camera = state.t('hwCameraFound');
+  } else if (!state.cameraPresenceChecked) {
+    camera = state.t('hwChecking');
+  } else if (state.cameraPresence) {
+    camera = state.t('hwCameraNone');
+  } else {
+    camera = state.t('hwUnknown');
+  }
+
+  let torchKey;
+  if (env.ios) {
+    torchKey = 'hwTorchIos';
+  } else if (driver.torchSupported === true) {
+    torchKey = 'hwTorchOk';
+  } else if (
+    driver.torchSupported === false ||
+    state.cameraErrorKind === 'no_torch' ||
+    state.cameraErrorKind === 'no_camera' ||
+    state.cameraPresence?.videoInputCount === 0
+  ) {
+    torchKey = 'hwTorchNo';
+  } else {
+    torchKey = 'hwTorchUntested';
+  }
+  return `${camera} · ${state.t(torchKey)}`;
+}
+
+function updateHwDetectSummary() {
+  if (!el.hwDetectList) return;
+  const yesNo = (ok) => state.t(ok ? 'hwSupported' : 'hwUnsupported');
+  const dpr = Number((env.devicePixelRatio || 1).toFixed(2));
+
+  let display;
+  if (state.displayHz) {
+    display = `${state.displayHz} Hz · ${formatFrameMs(state.displayHz)} ms · DPR ${dpr}`;
+  } else if (state.displayHzStatus === 'failed') {
+    display = `${state.t('hwUnknown')} · DPR ${dpr}`;
+  } else {
+    display = `${state.t('hwMeasuring')} · DPR ${dpr}`;
+  }
+
+  const rows = [
+    ['hwDisplay', display],
+    [
+      'hwHdrGamut',
+      `${env.hdrSupported ? 'HDR' : 'SDR'} · ${COLOR_GAMUT_LABELS[env.colorGamut] || COLOR_GAMUT_LABELS.srgb}`,
+    ],
+    ['hwFullscreen', yesNo(env.hasFullscreen)],
+    ['hwWakeLock', yesNo(env.hasWakeLock)],
+    [
+      'hwAudioHaptics',
+      state.t('hwAudioHapticsValue', {
+        audio: env.hasWebAudio ? '✓' : '—',
+        vibe: env.hasVibration ? '✓' : '—',
+      }),
+    ],
+    ['hwCameraTorch', getCameraTorchSummary()],
+  ];
+
+  const frag = document.createDocumentFragment();
+  for (const [labelKey, value] of rows) {
+    const item = document.createElement('div');
+    item.className = 'hw-item';
+    const dt = document.createElement('dt');
+    dt.textContent = state.t(labelKey);
+    const dd = document.createElement('dd');
+    dd.className = 'mono';
+    dd.textContent = value;
+    item.append(dt, dd);
+    frag.appendChild(item);
+  }
+  el.hwDetectList.innerHTML = '';
+  el.hwDetectList.appendChild(frag);
+}
+
+async function runDisplayRefreshDetection() {
+  if (state.displayHz || state.displayHzStatus === 'measuring') return;
+  // Deferred: re-run on the next visibilitychange (visible) or after the transmission ends
+  if (document.hidden || state.transmitting) return;
+
+  state.displayHzStatus = 'measuring';
+  state.displayMeasureTainted = false;
+  updateScreenHzInfo();
+  updateHwDetectSummary();
+
+  let res = null;
+  try {
+    res = await measureDisplayRefreshRate();
+  } catch {
+    res = null;
+  }
+
+  // Busy-wait bit scheduling during a transmission distorts rAF deltas — discard such samples
+  const tainted = state.displayMeasureTainted || state.transmitting;
+  state.displayMeasureTainted = false;
+  if (res && !tainted) {
+    state.displayHz = res.hz;
+    state.displayFrameMs = res.frameMs;
+    state.recommendedScreenPeriod = recommendScreenBitPeriodFromHz(res.hz);
+    state.displayHzStatus = 'done';
+    applyAutoScreenBitPeriod();
+  } else {
+    state.displayHzStatus = tainted || document.hidden ? 'idle' : 'failed';
+  }
+  updateEnvBadge();
+  updateScreenHzInfo();
+  updateHwDetectSummary();
+}
+
+async function runCameraPresenceDetection() {
+  const res = await detectCameraPresence();
+  state.cameraPresence = res;
+  state.cameraPresenceChecked = true;
+
+  if (
+    res &&
+    res.videoInputCount === 0 &&
+    state.lightMode === 'torch' &&
+    !hasSavedLightMode() &&
+    !state.transmitting &&
+    !state.cameraBusy
+  ) {
+    state.lightMode = 'screen';
+    state.lightModeAutoReason = 'no_camera';
+    state.cameraErrorKind = null;
+    updateInspector();
+  }
+  updateTorchStatusUI();
+}
+
+function initCameraPresenceDetection() {
+  runCameraPresenceDetection();
+  const mediaDevices = navigator.mediaDevices;
+  if (mediaDevices && typeof mediaDevices.addEventListener === 'function') {
+    mediaDevices.addEventListener('devicechange', () => {
+      runCameraPresenceDetection();
+    });
   }
 }
 
@@ -289,6 +557,7 @@ function getActiveBitPeriodMs(lightMode = state.lightMode) {
 
 function setLightMode(mode) {
   state.lightMode = mode === 'screen' ? 'screen' : 'torch';
+  state.lightModeAutoReason = null;
   if (state.lightMode === 'screen') {
     state.cameraErrorKind = null;
     if (state.toast && state.toast.kind === 'error' && state.toast.showSwitchToScreen) {
@@ -360,6 +629,7 @@ function applyLanguage(lang) {
   updateTimeSyncUI();
   updateTorchStatusUI();
   updateHdrBoostStatusUI();
+  updateScreenHzInfo();
   updateTimezoneMeta('home');
   updateTimezoneMeta('travel');
   updateInspector();
@@ -527,38 +797,75 @@ async function initCameraPermissionMonitor() {
   }
 }
 
+const AUTO_SCREEN_STATUS_KEYS = {
+  ios: 'torchStatusAutoScreenIos',
+  insecure: 'torchStatusAutoScreenInsecure',
+  unsupported: 'torchStatusAutoScreenUnsupported',
+  no_camera: 'torchStatusAutoScreenNoCamera',
+};
+
+const BRIGHTNESS_100_RE =
+  /((?:set\s+(?:monitor\s+|screen\s+)?brightness\s+to\s+100%|ustaw\s+jasność\s+(?:monitora\s+|ekranu\s+)?na\s+100%))/gi;
+
+function setTextWithBrightnessHighlight(elTarget, text) {
+  if (!elTarget) return;
+  const str = String(text ?? '');
+  BRIGHTNESS_100_RE.lastIndex = 0;
+  if (!BRIGHTNESS_100_RE.test(str)) {
+    elTarget.textContent = str;
+    return;
+  }
+  BRIGHTNESS_100_RE.lastIndex = 0;
+  elTarget.textContent = '';
+  let lastIdx = 0;
+  let match;
+  while ((match = BRIGHTNESS_100_RE.exec(str)) !== null) {
+    if (match.index > lastIdx) {
+      elTarget.appendChild(document.createTextNode(str.slice(lastIdx, match.index)));
+    }
+    const strong = document.createElement('strong');
+    strong.className = 'brightness-alert';
+    strong.textContent = match[0];
+    elTarget.appendChild(strong);
+    lastIdx = match.index + match[0].length;
+  }
+  if (lastIdx < str.length) {
+    elTarget.appendChild(document.createTextNode(str.slice(lastIdx)));
+  }
+}
+
 function updateTorchStatusUI() {
   el.torchStatusMsg.classList.remove('ok', 'warn');
   const isScreen = state.lightMode === 'screen';
 
-  if (!env.secureContext) {
-    el.envBadge.textContent = 'HTTP';
-  } else {
-    el.envBadge.textContent = env.ios ? 'iOS · HTTPS' : env.mobile ? 'Mobile · HTTPS' : 'Desktop · HTTPS';
-  }
+  updateEnvBadge();
 
   if (isScreen) {
+    const autoKey = AUTO_SCREEN_STATUS_KEYS[state.lightModeAutoReason];
     if (!env.mobile) {
-      el.torchStatusMsg.textContent = state.t('torchStatusDesktop');
+      setTextWithBrightnessHighlight(el.torchStatusMsg, state.t('torchStatusDesktop'));
+    } else if (autoKey) {
+      setTextWithBrightnessHighlight(el.torchStatusMsg, state.t(autoKey));
     } else {
-      el.torchStatusMsg.textContent = state.t('torchStatusScreenActive');
+      setTextWithBrightnessHighlight(el.torchStatusMsg, state.t('torchStatusScreenActive'));
     }
   } else if (!env.secureContext || state.cameraErrorKind === 'insecure_context') {
-    el.torchStatusMsg.textContent = state.t('torchStatusInsecure');
+    setTextWithBrightnessHighlight(el.torchStatusMsg, state.t('torchStatusInsecure'));
     el.torchStatusMsg.classList.add('warn');
   } else if (state.cameraErrorKind === 'permission_denied') {
-    el.torchStatusMsg.textContent = state.t('torchStatusPermissionDenied');
+    setTextWithBrightnessHighlight(el.torchStatusMsg, state.t('torchStatusPermissionDenied'));
     el.torchStatusMsg.classList.add('warn');
   } else if (state.cameraErrorKind === 'no_camera') {
-    el.torchStatusMsg.textContent = state.t('torchStatusNoCamera');
+    setTextWithBrightnessHighlight(el.torchStatusMsg, state.t('torchStatusNoCamera'));
     el.torchStatusMsg.classList.add('warn');
   } else if (state.cameraErrorKind === 'camera_busy') {
-    el.torchStatusMsg.textContent = state.t('torchStatusCameraBusy');
+    setTextWithBrightnessHighlight(el.torchStatusMsg, state.t('torchStatusCameraBusy'));
     el.torchStatusMsg.classList.add('warn');
   } else if (state.cameraErrorKind === 'no_torch' || driver.torchSupported === false) {
-    el.torchStatusMsg.textContent = env.ios
-      ? state.t('torchStatusIosWarning')
-      : state.t('torchStatusUnsupported');
+    setTextWithBrightnessHighlight(
+      el.torchStatusMsg,
+      env.ios ? state.t('torchStatusIosWarning') : state.t('torchStatusUnsupported'),
+    );
     el.torchStatusMsg.classList.add('warn');
   } else if (driver.torchSupported === true) {
     if (state.torchBench) {
@@ -581,7 +888,7 @@ function updateTorchStatusUI() {
       el.torchStatusMsg.classList.add('ok');
     }
   } else if (env.ios) {
-    el.torchStatusMsg.textContent = state.t('torchStatusIosWarning');
+    setTextWithBrightnessHighlight(el.torchStatusMsg, state.t('torchStatusIosWarning'));
     el.torchStatusMsg.classList.add('warn');
   } else {
     el.torchStatusMsg.textContent = state.t('torchStatusChecking');
@@ -604,6 +911,7 @@ function updateTorchStatusUI() {
   syncControlsDisabled();
 
   updateCameraPreviewVisibility();
+  updateHwDetectSummary();
 }
 
 function updateCameraPreviewVisibility() {
@@ -865,7 +1173,7 @@ function updateInspector() {
 // ---------- Transmission ----------
 
 function setTxStatus(text, mood = 'idle') {
-  el.txStatusText.textContent = text;
+  setTextWithBrightnessHighlight(el.txStatusText, text);
   el.txPulseDot.className = 'pulse-indicator';
   if (mood === 'active') el.txPulseDot.classList.add('active');
   if (mood === 'done') el.txPulseDot.classList.add('done');
@@ -933,10 +1241,12 @@ function renderToast() {
       toast.errorKind === 'permission_denied'
         ? state.t('toastTitlePermissionDenied')
         : state.t('toastTitleError');
-    el.txToastMessage.textContent =
+    setTextWithBrightnessHighlight(
+      el.txToastMessage,
       toast.errorKind && toast.errorKind !== 'generic'
         ? getCameraErrorMessage(toast.errorKind, toast.rawError ? { message: toast.rawError } : null)
-        : state.t('statusError', { msg: toast.rawError || 'Unknown error' });
+        : state.t('statusError', { msg: toast.rawError || 'Unknown error' }),
+    );
     el.txToastMessage.classList.remove('mono');
     el.txToastProgressTrack.hidden = true;
     el.btnToastCancel.hidden = true;
@@ -1036,6 +1346,9 @@ async function startTransmission(mode) {
   unlockFeedbackAudio();
 
   state.transmitting = true;
+  if (state.displayHzStatus === 'measuring') {
+    state.displayMeasureTainted = true;
+  }
   state.abortController = new AbortController();
   const { signal } = state.abortController;
   syncControlsDisabled();
@@ -1269,6 +1582,11 @@ async function startTransmission(mode) {
     syncControlsDisabled();
     updateTorchStatusUI();
     tickClocks();
+    if (state.displayHz) {
+      applyAutoScreenBitPeriod();
+    } else {
+      runDisplayRefreshDetection();
+    }
   }
 }
 
@@ -1556,6 +1874,7 @@ function initControls() {
     onCommit: (val) => {
       state.screenBitPeriodMs = val;
       saveStorage(STORAGE_KEYS.screenBitPeriod, val);
+      updateScreenHzInfo();
       updateInspector();
     },
   });
@@ -1643,8 +1962,16 @@ function initControls() {
   el.customUtcInput.addEventListener('input', updateInspector);
 
   el.btnResetDefaults.addEventListener('click', () => {
+    // Drop saved overrides so screen bit period & HDR boost snap back to auto-detected values
+    try {
+      localStorage.removeItem(STORAGE_KEYS.screenBitPeriod);
+      localStorage.removeItem(STORAGE_KEYS.hdrBoost);
+    } catch {
+      // ignore storage errors
+    }
+
     state.bitPeriodMs = WOP.DEFAULT_BIT_PERIOD_MS;
-    state.screenBitPeriodMs = DEFAULT_SCREEN_BIT_PERIOD_MS;
+    state.screenBitPeriodMs = getAutoScreenBitPeriodMs();
     state.torchOffsetMs = env.ios ? WOP.APPLE_TORCH_OFFSET_MS : WOP.DEFAULT_TORCH_OFFSET_MS;
     state.screenCountdownSec = 2;
     state.txDurationComp = true;
@@ -1666,20 +1993,16 @@ function initControls() {
     el.customTimeWrap.hidden = true;
 
     saveStorage(STORAGE_KEYS.bitPeriod, state.bitPeriodMs);
-    saveStorage(STORAGE_KEYS.screenBitPeriod, state.screenBitPeriodMs);
     saveStorage(STORAGE_KEYS.torchOffset, state.torchOffsetMs);
     saveStorage(STORAGE_KEYS.screenCountdown, state.screenCountdownSec);
     saveStorage(STORAGE_KEYS.txDurationComp, state.txDurationComp);
     saveStorage(STORAGE_KEYS.feedback, state.feedbackEnabled);
     saveStorage(STORAGE_KEYS.includeDst, state.includeDst);
     saveStorage(STORAGE_KEYS.dateRef, state.dateRef);
-    try {
-      localStorage.removeItem(STORAGE_KEYS.hdrBoost);
-    } catch {
-      // ignore storage errors
-    }
     env.hdrSupported = detectHdrDisplaySupport();
+    env.colorGamut = detectColorGamut();
     setHdrBoostEnabled(env.hdrSupported);
+    updateScreenHzInfo();
     updateTorchStatusUI();
     updateInspector();
   });
@@ -1713,6 +2036,8 @@ function initControls() {
       el.chkPreview.checked = false;
       driver.releaseCamera();
       updateTorchStatusUI();
+    } else if (!state.displayHz) {
+      runDisplayRefreshDetection();
     }
   });
   window.addEventListener('pagehide', () => {
@@ -1726,9 +2051,11 @@ function initControls() {
 initControls();
 applyLanguage(state.lang);
 initCameraPermissionMonitor();
+initCameraPresenceDetection();
 tickClocks();
 registerServiceWorker();
 runTimeSync();
+runDisplayRefreshDetection();
 setInterval(tickClocks, 100);
 setInterval(() => {
   const details = document.getElementById('advancedDetails');

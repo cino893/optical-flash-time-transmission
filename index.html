@@ -15,7 +15,7 @@
       content="Optical flash time & date transmitter (WOP v2.4) for Longines Conquest V.H.P. GMT watches using phone LED flashlight or screen flash."
     />
     <title>Optical Flash Time Sync — Longines Conquest V.H.P. GMT</title>
-    <link rel="stylesheet" href="styles.css?v=11" />
+    <link rel="stylesheet" href="styles.css?v=12" />
   </head>
   <body>
     <header class="masthead">
@@ -83,6 +83,32 @@
       </section>
 
       <main class="main-grid">
+        <!-- Step-by-step instructions -->
+        <section class="panel panel-full" id="howToSection">
+          <div class="panel-header">
+            <h2 data-i18n="howToTitle">How to set your watch</h2>
+          </div>
+          <figure class="sensor-diagram">
+            <img
+              id="sensorDiagramImg"
+              src="assets/conquest-vhp-gmt-diagram.svg"
+              alt="Conquest V.H.P. GMT optical sensor location inside the 1 of 12"
+              width="840"
+              height="400"
+              loading="eager"
+            />
+            <figcaption data-i18n="sensorDiagramCaption">
+              The optical receiver photodiode is hidden inside the vertical stem of the "1" in "12".
+            </figcaption>
+          </figure>
+          <ol class="steps-list">
+            <li data-i18n-html="step1"></li>
+            <li data-i18n-html="step2"></li>
+            <li data-i18n-html="step3"></li>
+            <li data-i18n-html="step4"></li>
+          </ol>
+        </section>
+
         <!-- Light Source Card -->
         <section class="panel panel-full">
           <div class="panel-header">
@@ -283,32 +309,6 @@
           </div>
         </section>
 
-        <!-- Step-by-step instructions -->
-        <section class="panel panel-full">
-          <div class="panel-header">
-            <h2 data-i18n="howToTitle">How to set your watch</h2>
-          </div>
-          <figure class="sensor-diagram">
-            <img
-              id="sensorDiagramImg"
-              src="assets/conquest-vhp-gmt-diagram.svg"
-              alt="Conquest V.H.P. GMT optical sensor location inside the 1 of 12"
-              width="840"
-              height="400"
-              loading="lazy"
-            />
-            <figcaption data-i18n="sensorDiagramCaption">
-              The optical receiver photodiode is hidden inside the vertical stem of the "1" in "12".
-            </figcaption>
-          </figure>
-          <ol class="steps-list">
-            <li data-i18n-html="step1"></li>
-            <li data-i18n-html="step2"></li>
-            <li data-i18n-html="step3"></li>
-            <li data-i18n-html="step4"></li>
-          </ol>
-        </section>
-
         <!-- Quietly collapsed Calibration & Protocol Inspector -->
         <section class="advanced-section panel-full">
           <details id="advancedDetails">
@@ -318,6 +318,11 @@
             </summary>
 
             <div class="advanced-body">
+              <div id="hwDetectSummary" class="hw-summary" aria-live="polite">
+                <span class="hw-summary-title" data-i18n="hwSummaryTitle">Auto-detected hardware</span>
+                <dl id="hwDetectList" class="hw-summary-list"></dl>
+              </div>
+
               <div class="calib-grid">
                 <div class="field">
                   <div class="label-row">
@@ -357,6 +362,7 @@
                   </div>
                   <input type="range" id="screenBitPeriodRange" min="10" max="100" step="1" value="50" aria-label="Screen bit period slider" />
                   <small class="help-text" data-i18n="screenBitPeriodHelp"></small>
+                  <small id="screenHzInfo" class="help-text hz-info mono" aria-live="polite"></small>
                 </div>
 
                 <div class="field">
@@ -575,6 +581,6 @@
       </div>
     </div>
 
-    <script type="module" src="js/app.js?v=11"></script>
+    <script type="module" src="js/app.js?v=12"></script>
   </body>
 </html>
