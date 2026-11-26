@@ -3,23 +3,23 @@ import {
   buildWopFrame,
   buildAutoSyncedFrame,
   bitsToString,
-} from './wop-protocol.js?v=9';
+} from './wop-protocol.js?v=10';
 import {
   analyzeTimezone,
   getSupportedTimezones,
   getLocalSystemTimezone,
   getLocalParts,
   formatUtcOffset,
-} from './timezone-utils.js?v=9';
-import { OpticalFlashDriver, detectEnvironment, classifyCameraError } from './flash-driver.js?v=9';
-import { detectInitialLanguage, createTranslator } from './i18n.js?v=9';
-import { syncNetworkUtcOffset } from './time-sync.js?v=9';
+} from './timezone-utils.js?v=10';
+import { OpticalFlashDriver, detectEnvironment, classifyCameraError } from './flash-driver.js?v=10';
+import { detectInitialLanguage, createTranslator } from './i18n.js?v=10';
+import { syncNetworkUtcOffset } from './time-sync.js?v=10';
 import {
   unlockFeedbackAudio,
   feedbackStart,
   feedbackSuccess,
   feedbackError,
-} from './feedback.js?v=9';
+} from './feedback.js?v=10';
 
 const DEFAULT_SCREEN_BIT_PERIOD_MS = 50;
 
@@ -535,7 +535,7 @@ function updateTorchStatusUI() {
   if (el.btnSwitchToScreen) {
     el.btnSwitchToScreen.hidden = !showSwitchToScreen;
   }
-  el.btnTestBlink.disabled = state.transmitting;
+  syncControlsDisabled();
 
   updateCameraPreviewVisibility();
 }
@@ -1271,12 +1271,6 @@ function initControls() {
       setLightMode('screen');
     }
   });
-  if (el.optScreenLabel) {
-    el.optScreenLabel.addEventListener('click', () => {
-      state.cameraErrorKind = null;
-      updateTorchStatusUI();
-    });
-  }
   if (el.btnSwitchToScreen) {
     el.btnSwitchToScreen.addEventListener('click', () => {
       if (state.transmitting) return;
