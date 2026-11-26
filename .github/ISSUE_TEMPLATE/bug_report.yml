@@ -1,0 +1,69 @@
+name: Bug Report
+description: Report a bug in the web app, camera/LED flash driver, screen flash mode, or WOP protocol encoding.
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug! Please fill in the details below so we can reproduce and fix it quickly.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: A clear and concise description of the bug and what you expected to happen instead.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Exact steps to trigger the issue.
+      placeholder: |
+        1. Open the app on ...
+        2. Select light mode ...
+        3. Tap Transmit ...
+    validations:
+      required: true
+
+  - type: dropdown
+    id: light-mode
+    attributes:
+      label: Light source mode
+      options:
+        - Rear LED Flashlight (Default)
+        - Screen / Monitor Flash
+        - Both / General UI
+    validations:
+      required: true
+
+  - type: input
+    id: device
+    attributes:
+      label: Device & OS
+      placeholder: "e.g., Pixel 8 (Android 15), iPhone 15 (iOS 18), Windows 11 laptop"
+    validations:
+      required: true
+
+  - type: input
+    id: browser
+    attributes:
+      label: Browser & version
+      placeholder: "e.g., Chrome 135, Safari 18, Firefox 137"
+    validations:
+      required: true
+
+  - type: input
+    id: timing
+    attributes:
+      label: Timing / calibration settings (if modified)
+      placeholder: "e.g., Default (30 ms / 0 ms), or 50 ms screen mode, duration comp ON/OFF"
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Error messages, screenshots, or Protocol Inspector output
+      description: Paste any toast message, browser console error, or frame hex/bitstream if relevant.
+      render: text

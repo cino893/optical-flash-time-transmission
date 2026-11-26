@@ -1,0 +1,57 @@
+name: Watch Compatibility Report
+description: Share real-world optical sync test results for your watch, phone, or monitor.
+title: "[Compatibility]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Real-world hardware reports help improve default timing calibration and document compatibility across watches, phones, and displays.
+
+  - type: input
+    id: watch-model
+    attributes:
+      label: Watch model & reference
+      placeholder: "e.g., Longines Conquest V.H.P. GMT (L3.718.4.56.6)"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: result
+    attributes:
+      label: Sync result
+      options:
+        - Success — time, date & timezone set accurately
+        - Partial success — watch reacted, but time/offset was slightly off
+        - No response — watch stayed in reception mode
+    validations:
+      required: true
+
+  - type: dropdown
+    id: mode
+    attributes:
+      label: Light source used
+      options:
+        - Rear LED Flashlight (Default)
+        - Screen / Monitor Flash
+    validations:
+      required: true
+
+  - type: input
+    id: device-browser
+    attributes:
+      label: Device, OS & browser
+      placeholder: "e.g., Samsung Galaxy S24 / Android 15 / Chrome 135, or MacBook Pro 60 Hz / Safari"
+    validations:
+      required: true
+
+  - type: input
+    id: calibration
+    attributes:
+      label: Bit period, rising-edge offset & duration compensation
+      placeholder: "e.g., 30 ms, 0 ms offset, duration compensation ON (benchmark reported 18 ms)"
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes (distance, lighting, T1/T2, DST, seconds accuracy)
+      description: Any helpful observations such as distance from the 1-of-12 sensor, ambient light, or accuracy compared to UTC.
