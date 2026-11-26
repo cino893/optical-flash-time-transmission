@@ -3,23 +3,23 @@ import {
   buildWopFrame,
   buildAutoSyncedFrame,
   bitsToString,
-} from './wop-protocol.js?v=5';
+} from './wop-protocol.js?v=6';
 import {
   analyzeTimezone,
   getSupportedTimezones,
   getLocalSystemTimezone,
   getLocalParts,
   formatUtcOffset,
-} from './timezone-utils.js?v=5';
-import { OpticalFlashDriver, detectEnvironment, classifyCameraError } from './flash-driver.js?v=5';
-import { detectInitialLanguage, createTranslator } from './i18n.js?v=5';
-import { syncNetworkUtcOffset } from './time-sync.js?v=5';
+} from './timezone-utils.js?v=6';
+import { OpticalFlashDriver, detectEnvironment, classifyCameraError } from './flash-driver.js?v=6';
+import { detectInitialLanguage, createTranslator } from './i18n.js?v=6';
+import { syncNetworkUtcOffset } from './time-sync.js?v=6';
 import {
   unlockFeedbackAudio,
   feedbackStart,
   feedbackSuccess,
   feedbackError,
-} from './feedback.js?v=5';
+} from './feedback.js?v=6';
 
 const DEFAULT_SCREEN_BIT_PERIOD_MS = 50;
 
@@ -139,6 +139,7 @@ const el = {
   customTimeWrap: document.getElementById('customTimeWrap'),
   customUtcInput: document.getElementById('customUtcInput'),
   btnResetDefaults: document.getElementById('btnResetDefaults'),
+  sensorDiagramImg: document.getElementById('sensorDiagramImg'),
   inspectorSummary: document.getElementById('inspectorSummary'),
   inspectorSegments: document.getElementById('inspectorSegments'),
   waveformCanvas: document.getElementById('waveformCanvas'),
@@ -261,6 +262,14 @@ function applyLanguage(lang) {
       node.placeholder = state.t(key);
     }
   });
+
+  if (el.sensorDiagramImg) {
+    el.sensorDiagramImg.src =
+      lang === 'pl'
+        ? 'assets/conquest-vhp-gmt-diagram-pl.svg'
+        : 'assets/conquest-vhp-gmt-diagram.svg';
+    el.sensorDiagramImg.alt = state.t('sensorDiagramAlt');
+  }
 
   updateTimeSyncUI();
   updateTorchStatusUI();

@@ -76,6 +76,8 @@ export const TRANSLATIONS = {
     toastBtnOk: 'OK',
     toastBtnClose: 'Close',
     howToTitle: 'How to set your watch',
+    sensorDiagramAlt: 'Conquest V.H.P. GMT schematic showing the optical light sensor hidden inside the "1" of "12" and all 4 hands',
+    sensorDiagramCaption: 'The optical light sensor (photodiode) is hidden inside the vertical stem of the "1" in "12".',
     step1:
       'Put the <strong>Longines Conquest V.H.P. GMT</strong> into Flash Setting mode: press the crown briefly, then press and hold it for about 2 seconds until the hands move into reception position.',
     step2:
@@ -191,6 +193,8 @@ export const TRANSLATIONS = {
     toastBtnOk: 'OK',
     toastBtnClose: 'Zamknij',
     howToTitle: 'Jak ustawić zegarek',
+    sensorDiagramAlt: 'Schemat zegarka Conquest V.H.P. GMT z czujnikiem światła ukrytym w cyfrze „1” z „12” oraz 4 wskazówkami',
+    sensorDiagramCaption: 'Czujnik optyczny (fotodioda) jest ukryty w pionowej kresce cyfry „1” z godziny „12”.',
     step1:
       'Przełącz zegarek <strong>Longines Conquest V.H.P. GMT</strong> w tryb odbioru Flash Setting: naciśnij krótko koronkę, a następnie przytrzymaj ją przez ok. 2 sekundy, aż wskazówki ustawią się w pozycji odbioru.',
     step2:
