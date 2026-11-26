@@ -1,4 +1,4 @@
-const CACHE_NAME = 'wop-flash-sync-v3';
+const CACHE_NAME = 'wop-flash-sync-v4';
 const APP_ASSETS = [
   './',
   './index.html',

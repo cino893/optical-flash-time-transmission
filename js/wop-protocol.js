@@ -335,6 +335,7 @@ export function buildAutoSyncedFrame({
   bitPeriodMs = WOP.DEFAULT_BIT_PERIOD_MS,
   dateRef = 'utc', // 'utc' (consistent with watch UTC clock) or 'local'
   bitStuffing = true,
+  compensateDuration = true,
 }) {
   const safePeriod = Math.max(WOP.MIN_BIT_PERIOD_MS, Math.min(WOP.MAX_BIT_PERIOD_MS, Math.round(bitPeriodMs)));
 
@@ -362,6 +363,27 @@ export function buildAutoSyncedFrame({
       second: d.getUTCSeconds(),
     };
   };
+
+  if (!compensateDuration) {
+    const targetUtcMs = Math.floor(nowMs / 1000) * 1000;
+    const frame = buildWopFrame({
+      mode,
+      timezone,
+      utcTime: makeUtcTimeParts(targetUtcMs),
+      date: makeDateParts(targetUtcMs),
+      dst,
+      bitStuffing,
+    });
+    const stuffedDurationMs = frame.stuffedBits.length * safePeriod;
+    return {
+      frame,
+      targetUtcMs,
+      startDelayMs: 0,
+      stuffedDurationMs,
+      totalDurationMs: (frame.txBits.length + 1) * safePeriod,
+      bitPeriodMs: safePeriod,
+    };
+  }
 
   // Pass 1: estimate stuffed duration using placeholder 00:00:00
   const estFrame = buildWopFrame({

@@ -32,6 +32,7 @@ const STORAGE_KEYS = {
   screenBitPeriod: 'wop_screen_bit_period',
   torchOffset: 'wop_torch_offset',
   screenCountdown: 'wop_screen_countdown',
+  txDurationComp: 'wop_tx_duration_comp',
   includeDst: 'wop_include_dst',
   feedback: 'wop_feedback',
   dateRef: 'wop_date_ref',
@@ -54,6 +55,7 @@ const state = {
     env.ios ? WOP.APPLE_TORCH_OFFSET_MS : WOP.DEFAULT_TORCH_OFFSET_MS,
   ),
   screenCountdownSec: loadNumber(STORAGE_KEYS.screenCountdown, 2),
+  txDurationComp: loadBool(STORAGE_KEYS.txDurationComp, true),
   includeDst: loadBool(STORAGE_KEYS.includeDst, true),
   feedbackEnabled: loadBool(STORAGE_KEYS.feedback, true),
   dateRef: loadString(STORAGE_KEYS.dateRef, 'utc'),
@@ -130,6 +132,7 @@ const el = {
   screenCountdownRange: document.getElementById('screenCountdownRange'),
   screenCountdownVal: document.getElementById('screenCountdownVal'),
   dateRefSelect: document.getElementById('dateRefSelect'),
+  chkTxDurationComp: document.getElementById('chkTxDurationComp'),
   chkFeedback: document.getElementById('chkFeedback'),
   chkIncludeDst: document.getElementById('chkIncludeDst'),
   chkCustomTime: document.getElementById('chkCustomTime'),
@@ -992,6 +995,7 @@ async function startTransmission(mode) {
         dst: dstData,
         bitPeriodMs: activeBitPeriodMs,
         dateRef: state.dateRef,
+        compensateDuration: state.txDurationComp,
       });
       txBits = synced.frame.txBits;
       startDelayMs = synced.startDelayMs;
@@ -1342,6 +1346,12 @@ function initControls() {
     updateInspector();
   });
 
+  el.chkTxDurationComp.checked = state.txDurationComp;
+  el.chkTxDurationComp.addEventListener('change', () => {
+    state.txDurationComp = el.chkTxDurationComp.checked;
+    saveStorage(STORAGE_KEYS.txDurationComp, state.txDurationComp);
+  });
+
   el.chkFeedback.checked = state.feedbackEnabled;
   el.chkFeedback.addEventListener('change', () => {
     state.feedbackEnabled = el.chkFeedback.checked;
@@ -1371,6 +1381,7 @@ function initControls() {
     state.screenBitPeriodMs = DEFAULT_SCREEN_BIT_PERIOD_MS;
     state.torchOffsetMs = env.ios ? WOP.APPLE_TORCH_OFFSET_MS : WOP.DEFAULT_TORCH_OFFSET_MS;
     state.screenCountdownSec = 2;
+    state.txDurationComp = true;
     state.includeDst = true;
     state.feedbackEnabled = true;
     state.dateRef = 'utc';
@@ -1385,6 +1396,7 @@ function initControls() {
     el.screenCountdownRange.value = String(state.screenCountdownSec);
     el.screenCountdownVal.textContent = `${state.screenCountdownSec} s`;
     el.dateRefSelect.value = state.dateRef;
+    el.chkTxDurationComp.checked = true;
     el.chkFeedback.checked = true;
     el.chkIncludeDst.checked = true;
     el.chkCustomTime.checked = false;
@@ -1394,6 +1406,7 @@ function initControls() {
     saveStorage(STORAGE_KEYS.screenBitPeriod, state.screenBitPeriodMs);
     saveStorage(STORAGE_KEYS.torchOffset, state.torchOffsetMs);
     saveStorage(STORAGE_KEYS.screenCountdown, state.screenCountdownSec);
+    saveStorage(STORAGE_KEYS.txDurationComp, state.txDurationComp);
     saveStorage(STORAGE_KEYS.feedback, state.feedbackEnabled);
     saveStorage(STORAGE_KEYS.includeDst, state.includeDst);
     saveStorage(STORAGE_KEYS.dateRef, state.dateRef);

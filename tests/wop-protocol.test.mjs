@@ -166,6 +166,21 @@ test('Auto-sync timing lands end of stuffed frame on exact whole UTC second', ()
   // start + delay + initial bitPeriod + stuffedBits * bitPeriod === targetUtcMs
   const expectedEnd = nowMs + res.startDelayMs + res.bitPeriodMs + res.stuffedDurationMs;
   assert.equal(expectedEnd, res.targetUtcMs);
+
+  // With compensateDuration disabled, sends current UTC second immediately with zero delay
+  const uncomp = buildAutoSyncedFrame({
+    nowMs,
+    mode: 'home',
+    timezone: { hourShift: 1, minuteShift: 0, hemisphere: 0 },
+    dst: {
+      start: { season: 0, month: 3, day: 29, hour: 2 },
+      stop: { season: 1, month: 10, day: 25, hour: 3 },
+    },
+    bitPeriodMs: 30,
+    compensateDuration: false,
+  });
+  assert.equal(uncomp.targetUtcMs, Date.UTC(2026, 10, 25, 11, 30, 12, 0));
+  assert.equal(uncomp.startDelayMs, 0);
 });
 
 test('Bit schedule rising-edge offset shifts 0->1 transitions early without cumulative drift', () => {
