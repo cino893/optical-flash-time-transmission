@@ -3,23 +3,29 @@ import {
   buildWopFrame,
   buildAutoSyncedFrame,
   bitsToString,
-} from './wop-protocol.js?v=10';
+} from './wop-protocol.js?v=11';
 import {
   analyzeTimezone,
   getSupportedTimezones,
   getLocalSystemTimezone,
   getLocalParts,
   formatUtcOffset,
-} from './timezone-utils.js?v=10';
-import { OpticalFlashDriver, detectEnvironment, classifyCameraError } from './flash-driver.js?v=10';
-import { detectInitialLanguage, createTranslator } from './i18n.js?v=10';
-import { syncNetworkUtcOffset } from './time-sync.js?v=10';
+} from './timezone-utils.js?v=11';
+import {
+  OpticalFlashDriver,
+  detectEnvironment,
+  detectHdrDisplaySupport,
+  classifyCameraError,
+  HDR_MEDIA_QUERY,
+} from './flash-driver.js?v=11';
+import { detectInitialLanguage, createTranslator } from './i18n.js?v=11';
+import { syncNetworkUtcOffset } from './time-sync.js?v=11';
 import {
   unlockFeedbackAudio,
   feedbackStart,
   feedbackSuccess,
   feedbackError,
-} from './feedback.js?v=10';
+} from './feedback.js?v=11';
 
 const DEFAULT_SCREEN_BIT_PERIOD_MS = 50;
 
@@ -36,6 +42,7 @@ const STORAGE_KEYS = {
   includeDst: 'wop_include_dst',
   feedback: 'wop_feedback',
   dateRef: 'wop_date_ref',
+  hdrBoost: 'wop_hdr_boost',
 };
 
 const env = detectEnvironment();
@@ -78,6 +85,7 @@ const state = {
   includeDst: loadBool(STORAGE_KEYS.includeDst, true),
   feedbackEnabled: loadBool(STORAGE_KEYS.feedback, true),
   dateRef: loadString(STORAGE_KEYS.dateRef, 'utc'),
+  hdrBoostEnabled: loadBool(STORAGE_KEYS.hdrBoost, env.hdrSupported),
   utcOffsetMs: 0,
   timeSyncInfo: null,
   timeSyncBusy: false,
@@ -157,6 +165,8 @@ const el = {
   chkFeedback: document.getElementById('chkFeedback'),
   chkIncludeDst: document.getElementById('chkIncludeDst'),
   chkCustomTime: document.getElementById('chkCustomTime'),
+  chkHdrBoost: document.getElementById('chkHdrBoost'),
+  hdrBoostStatus: document.getElementById('hdrBoostStatus'),
   customTimeWrap: document.getElementById('customTimeWrap'),
   customUtcInput: document.getElementById('customUtcInput'),
   btnResetDefaults: document.getElementById('btnResetDefaults'),
@@ -166,6 +176,7 @@ const el = {
   waveformCanvas: document.getElementById('waveformCanvas'),
   screenFlashOverlay: document.getElementById('screenFlashOverlay'),
   screenFlashPad: document.getElementById('screenFlashPad'),
+  hdrPrimerImg: document.getElementById('hdrPrimerImg'),
   screenOverlayText: document.getElementById('screenOverlayText'),
   screenOverlayProgress: document.getElementById('screenOverlayProgress'),
   btnOverlayCancel: document.getElementById('btnOverlayCancel'),
@@ -212,6 +223,60 @@ function saveStorage(key, value) {
 function loadLightMode() {
   const saved = loadString(STORAGE_KEYS.lightMode, 'torch');
   return saved === 'screen' ? 'screen' : 'torch';
+}
+
+// ---------- HDR Peak White Boost (EDR) ----------
+
+function hasSavedHdrBoostPreference() {
+  return loadString(STORAGE_KEYS.hdrBoost, null) !== null;
+}
+
+function updateHdrBoostStatusUI() {
+  if (el.chkHdrBoost) {
+    el.chkHdrBoost.checked = state.hdrBoostEnabled;
+  }
+  if (el.hdrBoostStatus) {
+    el.hdrBoostStatus.textContent = state.t(
+      env.hdrSupported ? 'hdrBoostDetectedHdr' : 'hdrBoostDetectedSdr',
+    );
+  }
+}
+
+function applyHdrBoostUI() {
+  const enabled = Boolean(state.hdrBoostEnabled);
+  el.screenFlashPad.classList.toggle('hdr-enabled', enabled);
+  if (el.hdrPrimerImg) {
+    el.hdrPrimerImg.hidden = !enabled;
+  }
+}
+
+function setHdrBoostEnabled(enabled) {
+  state.hdrBoostEnabled = Boolean(enabled);
+  updateHdrBoostStatusUI();
+  applyHdrBoostUI();
+}
+
+function initHdrDisplayMonitor() {
+  if (typeof window.matchMedia !== 'function') return;
+  let mql;
+  try {
+    mql = window.matchMedia(HDR_MEDIA_QUERY);
+  } catch {
+    return;
+  }
+  const onChange = () => {
+    env.hdrSupported = detectHdrDisplaySupport();
+    if (hasSavedHdrBoostPreference()) {
+      updateHdrBoostStatusUI();
+    } else {
+      setHdrBoostEnabled(env.hdrSupported);
+    }
+  };
+  if (typeof mql.addEventListener === 'function') {
+    mql.addEventListener('change', onChange);
+  } else if (typeof mql.addListener === 'function') {
+    mql.addListener(onChange);
+  }
 }
 
 function getCorrectedNowMs() {
@@ -294,6 +359,7 @@ function applyLanguage(lang) {
 
   updateTimeSyncUI();
   updateTorchStatusUI();
+  updateHdrBoostStatusUI();
   updateTimezoneMeta('home');
   updateTimezoneMeta('travel');
   updateInspector();
@@ -1034,6 +1100,7 @@ async function startTransmission(mode) {
 
     // 2. If screen flash mode, open fullscreen overlay and give countdown so watch can be positioned
     if (activeLightMode === 'screen') {
+      applyHdrBoostUI();
       el.screenFlashOverlay.hidden = false;
       el.screenFlashPad.classList.remove('lit', 'tx-active');
       if (typeof el.screenFlashOverlay.requestFullscreen === 'function' && !document.fullscreenElement) {
@@ -1287,6 +1354,7 @@ function initControls() {
     if (state.transmitting || state.cameraBusy) return;
     if (state.lightMode === 'screen') {
       clearScreenTestBlinkTimer();
+      applyHdrBoostUI();
       el.screenFlashOverlay.hidden = false;
       el.screenFlashPad.classList.add('tx-active', 'lit');
       state.screenTestBlinkTimer = setTimeout(() => {
@@ -1556,6 +1624,13 @@ function initControls() {
     updateInspector();
   });
 
+  setHdrBoostEnabled(state.hdrBoostEnabled);
+  el.chkHdrBoost.addEventListener('change', () => {
+    setHdrBoostEnabled(el.chkHdrBoost.checked);
+    saveStorage(STORAGE_KEYS.hdrBoost, state.hdrBoostEnabled);
+  });
+  initHdrDisplayMonitor();
+
   el.chkCustomTime.addEventListener('change', () => {
     state.customTimeEnabled = el.chkCustomTime.checked;
     el.customTimeWrap.hidden = !state.customTimeEnabled;
@@ -1598,6 +1673,13 @@ function initControls() {
     saveStorage(STORAGE_KEYS.feedback, state.feedbackEnabled);
     saveStorage(STORAGE_KEYS.includeDst, state.includeDst);
     saveStorage(STORAGE_KEYS.dateRef, state.dateRef);
+    try {
+      localStorage.removeItem(STORAGE_KEYS.hdrBoost);
+    } catch {
+      // ignore storage errors
+    }
+    env.hdrSupported = detectHdrDisplaySupport();
+    setHdrBoostEnabled(env.hdrSupported);
     updateTorchStatusUI();
     updateInspector();
   });

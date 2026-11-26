@@ -1005,6 +1005,16 @@ details[open] .chevron {
   gap: 12px 24px;
 }
 
+.toggle-with-help {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.toggle-help {
+  padding-left: 21px;
+}
+
 .custom-time-wrap {
   max-width: 320px;
   display: flex;
@@ -1334,6 +1344,8 @@ details[open] .chevron {
 
 .screen-flash-pad {
   flex: 1;
+  position: relative;
+  overflow: hidden;
   background: #000000;
   display: grid;
   place-items: center;
@@ -1345,12 +1357,34 @@ details[open] .chevron {
   background: #ffffff;
 }
 
+/* HDR / EDR peak white: BT.2020 PQ 10,000-nit PNG, shown instantly on lit bits */
+.hdr-white-layer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: fill;
+  pointer-events: none;
+  visibility: hidden;
+  opacity: 0;
+  transition: none;
+  dynamic-range-limit: no-limit;
+}
+
+.screen-flash-pad.hdr-enabled.lit .hdr-white-layer {
+  visibility: visible;
+  opacity: 1;
+}
+
 .screen-flash-pad.lit .screen-flash-guide,
 .screen-flash-pad.tx-active .screen-flash-guide {
   opacity: 0;
+  visibility: hidden;
 }
 
 .screen-flash-guide {
+  position: relative;
+  z-index: 1;
   text-align: center;
   color: #e2dfd7;
   padding: 20px;
@@ -1383,6 +1417,16 @@ details[open] .chevron {
   align-items: center;
   gap: 12px;
   border-top: 1px solid #1f2937;
+}
+
+/* Tiny always-painted HDR pixel that pre-warms display EDR headroom during the countdown */
+.hdr-primer {
+  display: block;
+  flex: 0 0 2px;
+  width: 2px;
+  height: 2px;
+  pointer-events: none;
+  dynamic-range-limit: no-limit;
 }
 
 .overlay-progress-track {

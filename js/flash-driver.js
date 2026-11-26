@@ -23,6 +23,23 @@ export function isLikelyMobile() {
   return isLikelyIOS() || /Android|webOS|BlackBerry|IEMobile|Opera Mini/i.test(ua);
 }
 
+export const HDR_MEDIA_QUERY = '(dynamic-range: high)';
+
+/**
+ * True when the current display/browser reports HDR (EDR headroom) capability.
+ * Safe to call outside a browser (e.g. Node.js tests) where `window` is undefined.
+ */
+export function detectHdrDisplaySupport() {
+  try {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+      return false;
+    }
+    return Boolean(window.matchMedia(HDR_MEDIA_QUERY).matches);
+  } catch {
+    return false;
+  }
+}
+
 export function detectEnvironment() {
   const secureContext = Boolean(window.isSecureContext);
   const hasMediaDevices = Boolean(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
@@ -33,6 +50,7 @@ export function detectEnvironment() {
     hasMediaDevices,
     ios,
     mobile,
+    hdrSupported: detectHdrDisplaySupport(),
   };
 }
 

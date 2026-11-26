@@ -1,5 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { inflateSync } from 'node:zlib';
 import {
   WOP,
   intToBits,
@@ -22,6 +24,7 @@ import {
   recommendBitPeriodFromLatency,
   classifyCameraError,
   detectTorchCapability,
+  detectHdrDisplaySupport,
 } from '../js/flash-driver.js';
 import { computeClockOffsetMs } from '../js/time-sync.js';
 
@@ -516,4 +519,86 @@ test('analyzeTimezone omits non-1-hour DST rules (Lord Howe 30m, Troll 2h)', () 
   assert.equal(lordHowe.nonStandardDst, true);
   assert.equal(lordHowe.dst, null);
   assert.equal(lordHowe.hemisphere, WOP.HEMISPHERE.SOUTH);
+});
+
+function pngCrc32(bytes) {
+  let crc = 0xffffffff;
+  for (const byte of bytes) {
+    crc ^= byte;
+    for (let k = 0; k < 8; k++) {
+      crc = crc & 1 ? 0xedb88320 ^ (crc >>> 1) : crc >>> 1;
+    }
+  }
+  return (crc ^ 0xffffffff) >>> 0;
+}
+
+test('hdr-white.png is a valid 1x1 16-bit BT.2020 PQ (cICP 9/16/0/1) peak white PNG with correct CRCs', () => {
+  const png = readFileSync(new URL('../assets/hdr-white.png', import.meta.url));
+  assert.deepEqual([...png.subarray(0, 8)], [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+
+  const chunks = new Map();
+  const order = [];
+  let offset = 8;
+  while (offset < png.length) {
+    const length = png.readUInt32BE(offset);
+    const type = png.toString('latin1', offset + 4, offset + 8);
+    const data = png.subarray(offset + 8, offset + 8 + length);
+    const storedCrc = png.readUInt32BE(offset + 8 + length);
+    assert.equal(storedCrc, pngCrc32(png.subarray(offset + 4, offset + 8 + length)), `${type} CRC-32`);
+    chunks.set(type, data);
+    order.push(type);
+    offset += 12 + length;
+  }
+  assert.equal(offset, png.length, 'No trailing bytes after IEND');
+  assert.equal(order[0], 'IHDR');
+  assert.equal(order.at(-1), 'IEND');
+  assert.ok(order.indexOf('cICP') < order.indexOf('IDAT'), 'cICP must precede IDAT');
+
+  const ihdr = chunks.get('IHDR');
+  assert.equal(ihdr.readUInt32BE(0), 1, 'width');
+  assert.equal(ihdr.readUInt32BE(4), 1, 'height');
+  assert.equal(ihdr[8], 16, 'bit depth');
+  assert.equal(ihdr[9], 2, 'color type RGB');
+  assert.deepEqual([...ihdr.subarray(10, 13)], [0, 0, 0]);
+
+  assert.deepEqual([...chunks.get('cICP')], [9, 16, 0, 1]);
+
+  const clli = chunks.get('cLLI');
+  assert.equal(clli.length, 8);
+  assert.equal(clli.readUInt32BE(0), 10000 * 10000, 'MaxCLL 10,000 nits');
+  assert.equal(clli.readUInt32BE(4), 10000 * 10000, 'MaxFALL 10,000 nits');
+
+  const raw = inflateSync(chunks.get('IDAT'));
+  assert.equal(raw.length, 7);
+  assert.equal(raw[0], 0, 'filter type None');
+  assert.deepEqual([raw.readUInt16BE(1), raw.readUInt16BE(3), raw.readUInt16BE(5)], [65535, 65535, 65535]);
+  assert.equal(chunks.get('IEND').length, 0);
+});
+
+test('detectHdrDisplaySupport reports HDR only when matchMedia("(dynamic-range: high)") matches', () => {
+  assert.equal(typeof globalThis.window, 'undefined');
+  assert.equal(detectHdrDisplaySupport(), false);
+
+  const queries = [];
+  const mockWindow = (hdr) => ({
+    matchMedia: (q) => {
+      queries.push(q);
+      return { matches: hdr && q === '(dynamic-range: high)' };
+    },
+  });
+  try {
+    globalThis.window = mockWindow(false);
+    assert.equal(detectHdrDisplaySupport(), false);
+    globalThis.window = mockWindow(true);
+    assert.equal(detectHdrDisplaySupport(), true);
+    assert.deepEqual(queries, ['(dynamic-range: high)', '(dynamic-range: high)']);
+    globalThis.window = {
+      matchMedia: () => {
+        throw new Error('unsupported');
+      },
+    };
+    assert.equal(detectHdrDisplaySupport(), false);
+  } finally {
+    delete globalThis.window;
+  }
 });

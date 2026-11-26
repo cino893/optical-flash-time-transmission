@@ -15,7 +15,7 @@
       content="Optical flash time & date transmitter (WOP v2.4) for Longines Conquest V.H.P. GMT watches using phone LED flashlight or screen flash."
     />
     <title>Optical Flash Time Sync — Longines Conquest V.H.P. GMT</title>
-    <link rel="stylesheet" href="styles.css?v=10" />
+    <link rel="stylesheet" href="styles.css?v=11" />
   </head>
   <body>
     <header class="masthead">
@@ -427,6 +427,14 @@
                   <input type="checkbox" id="chkCustomTime" />
                   <span data-i18n="customTimeToggle">Manual UTC date &amp; time override (for testing)</span>
                 </label>
+
+                <div class="toggle-with-help">
+                  <label class="checkbox-inline">
+                    <input type="checkbox" id="chkHdrBoost" aria-describedby="hdrBoostStatus" />
+                    <span data-i18n="hdrBoostLabel">HDR peak white boost for Screen / Monitor Flash (EDR)</span>
+                  </label>
+                  <small id="hdrBoostStatus" class="help-text toggle-help"></small>
+                </div>
               </div>
 
               <div id="customTimeWrap" class="custom-time-wrap" hidden>
@@ -531,6 +539,14 @@
     <!-- Full-screen Optical Display Flash Overlay (used in Screen / Monitor Flash mode) -->
     <div id="screenFlashOverlay" class="screen-overlay" hidden>
       <div id="screenFlashPad" class="screen-flash-pad">
+        <img
+          id="hdrWhiteLayer"
+          class="hdr-white-layer"
+          src="assets/hdr-white.png"
+          alt=""
+          aria-hidden="true"
+          decoding="sync"
+        />
         <div id="screenFlashGuide" class="screen-flash-guide">
           <div class="watch-ring">
             <span class="watch-12">12</span>
@@ -541,6 +557,15 @@
         </div>
       </div>
       <div class="screen-overlay-bar">
+        <img
+          id="hdrPrimerImg"
+          class="hdr-primer"
+          src="assets/hdr-white.png"
+          alt=""
+          aria-hidden="true"
+          decoding="sync"
+          hidden
+        />
         <div class="overlay-progress-track">
           <div id="screenOverlayProgress" class="overlay-progress-fill"></div>
         </div>
@@ -550,6 +575,6 @@
       </div>
     </div>
 
-    <script type="module" src="js/app.js?v=10"></script>
+    <script type="module" src="js/app.js?v=11"></script>
   </body>
 </html>
