@@ -1,8 +1,8 @@
-const CACHE_NAME = 'wop-flash-sync-v12';
+const CACHE_NAME = 'wop-flash-sync-v13';
 const APP_ASSETS = [
   './',
   './index.html',
-  './styles.css?v=12',
+  './styles.css?v=13',
   './manifest.webmanifest',
   './favicon.ico',
   './assets/icon.svg',

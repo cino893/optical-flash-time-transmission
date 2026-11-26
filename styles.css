@@ -462,7 +462,9 @@ body {
   background: #fcf8ef;
 }
 
-.brightness-alert {
+.brightness-alert,
+.steps-list .brightness-alert,
+.status-note .brightness-alert {
   color: #c62828;
   font-weight: 700;
 }
