@@ -914,26 +914,78 @@ details[open] .chevron {
 .num-unit {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 6px;
   flex-shrink: 0;
 }
 
-.num-input {
-  width: 66px;
-  padding: 4px 7px;
+.num-stepper {
+  display: inline-flex;
+  align-items: stretch;
   border: 1px solid var(--border-strong);
   border-radius: 2px;
+  background: #ffffff;
+  overflow: hidden;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.num-stepper:focus-within {
+  border-color: var(--navy);
+  box-shadow: 0 0 0 2px rgba(11, 26, 48, 0.08);
+}
+
+.step-btn {
+  appearance: none;
+  border: 0;
+  background: var(--surface-subtle);
+  color: var(--navy);
+  width: 26px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.step-btn:first-child {
+  border-right: 1px solid #e6e1d7;
+}
+
+.step-btn:last-child {
+  border-left: 1px solid #e6e1d7;
+}
+
+.step-btn:hover {
+  background: var(--navy);
+  color: #ffffff;
+}
+
+.step-btn:active {
+  background: var(--navy-hover);
+  color: var(--brass-light);
+}
+
+.num-input {
+  width: 48px;
+  padding: 4px 4px;
+  border: 0;
   background: #ffffff;
   color: var(--navy);
   font-size: 0.84rem;
   font-weight: 600;
-  text-align: right;
+  text-align: center;
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+.num-input::-webkit-outer-spin-button,
+.num-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
 }
 
 .num-input:focus {
   outline: none;
-  border-color: var(--navy);
-  box-shadow: 0 0 0 2px rgba(11, 26, 48, 0.08);
 }
 
 .unit-suffix {

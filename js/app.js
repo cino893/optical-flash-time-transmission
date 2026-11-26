@@ -3,23 +3,23 @@ import {
   buildWopFrame,
   buildAutoSyncedFrame,
   bitsToString,
-} from './wop-protocol.js?v=7';
+} from './wop-protocol.js?v=8';
 import {
   analyzeTimezone,
   getSupportedTimezones,
   getLocalSystemTimezone,
   getLocalParts,
   formatUtcOffset,
-} from './timezone-utils.js?v=7';
-import { OpticalFlashDriver, detectEnvironment, classifyCameraError } from './flash-driver.js?v=7';
-import { detectInitialLanguage, createTranslator } from './i18n.js?v=7';
-import { syncNetworkUtcOffset } from './time-sync.js?v=7';
+} from './timezone-utils.js?v=8';
+import { OpticalFlashDriver, detectEnvironment, classifyCameraError } from './flash-driver.js?v=8';
+import { detectInitialLanguage, createTranslator } from './i18n.js?v=8';
+import { syncNetworkUtcOffset } from './time-sync.js?v=8';
 import {
   unlockFeedbackAudio,
   feedbackStart,
   feedbackSuccess,
   feedbackError,
-} from './feedback.js?v=7';
+} from './feedback.js?v=8';
 
 const DEFAULT_SCREEN_BIT_PERIOD_MS = 50;
 
@@ -1408,6 +1408,19 @@ function initControls() {
       state.screenCountdownSec = val;
       saveStorage(STORAGE_KEYS.screenCountdown, val);
     },
+  });
+
+  // Left / right stepper buttons for numeric calibration inputs
+  document.querySelectorAll('.step-btn[data-step-target]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const target = document.getElementById(btn.dataset.stepTarget);
+      if (!target) return;
+      const delta = Number(btn.dataset.step) || 0;
+      const cur = Number(target.value);
+      const next = (Number.isFinite(cur) ? cur : 0) + delta;
+      target.value = String(next);
+      target.dispatchEvent(new Event('change', { bubbles: true }));
+    });
   });
 
   el.dateRefSelect.value = state.dateRef;

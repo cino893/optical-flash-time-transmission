@@ -15,7 +15,7 @@
       content="Optical flash time & date transmitter (WOP v2.4) for Longines Conquest V.H.P. GMT watches using phone LED flashlight or screen flash."
     />
     <title>Optical Flash Time Sync — Longines Conquest V.H.P. GMT</title>
-    <link rel="stylesheet" href="styles.css?v=7" />
+    <link rel="stylesheet" href="styles.css?v=8" />
   </head>
   <body>
     <header class="masthead">
@@ -323,7 +323,15 @@
                   <div class="label-row">
                     <label for="bitPeriodNum" data-i18n="bitPeriodLabel">Rear LED bit period (ms)</label>
                     <span class="num-unit">
-                      <input type="number" id="bitPeriodNum" class="num-input mono" min="10" max="100" step="1" value="30" inputmode="numeric" />
+                      <span class="num-stepper">
+                        <button type="button" class="step-btn" data-step-target="bitPeriodNum" data-step="-1" aria-label="Decrease">
+                          <svg viewBox="0 0 12 12" width="10" height="10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7.5 2.5L4 6l3.5 3.5" /></svg>
+                        </button>
+                        <input type="number" id="bitPeriodNum" class="num-input mono" min="10" max="100" step="1" value="30" inputmode="numeric" />
+                        <button type="button" class="step-btn" data-step-target="bitPeriodNum" data-step="1" aria-label="Increase">
+                          <svg viewBox="0 0 12 12" width="10" height="10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 2.5L8 6l-3.5 3.5" /></svg>
+                        </button>
+                      </span>
                       <span class="unit-suffix">ms</span>
                     </span>
                   </div>
@@ -335,7 +343,15 @@
                   <div class="label-row">
                     <label for="screenBitPeriodNum" data-i18n="screenBitPeriodLabel">Screen / Monitor bit period (ms)</label>
                     <span class="num-unit">
-                      <input type="number" id="screenBitPeriodNum" class="num-input mono" min="10" max="100" step="1" value="50" inputmode="numeric" />
+                      <span class="num-stepper">
+                        <button type="button" class="step-btn" data-step-target="screenBitPeriodNum" data-step="-1" aria-label="Decrease">
+                          <svg viewBox="0 0 12 12" width="10" height="10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7.5 2.5L4 6l3.5 3.5" /></svg>
+                        </button>
+                        <input type="number" id="screenBitPeriodNum" class="num-input mono" min="10" max="100" step="1" value="50" inputmode="numeric" />
+                        <button type="button" class="step-btn" data-step-target="screenBitPeriodNum" data-step="1" aria-label="Increase">
+                          <svg viewBox="0 0 12 12" width="10" height="10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 2.5L8 6l-3.5 3.5" /></svg>
+                        </button>
+                      </span>
                       <span class="unit-suffix">ms</span>
                     </span>
                   </div>
@@ -347,7 +363,15 @@
                   <div class="label-row">
                     <label for="torchOffsetNum" data-i18n="torchOffsetLabel">Torch turn-on offset (ms)</label>
                     <span class="num-unit">
-                      <input type="number" id="torchOffsetNum" class="num-input mono" min="-20" max="30" step="1" value="0" inputmode="numeric" />
+                      <span class="num-stepper">
+                        <button type="button" class="step-btn" data-step-target="torchOffsetNum" data-step="-1" aria-label="Decrease">
+                          <svg viewBox="0 0 12 12" width="10" height="10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7.5 2.5L4 6l3.5 3.5" /></svg>
+                        </button>
+                        <input type="number" id="torchOffsetNum" class="num-input mono" min="-20" max="30" step="1" value="0" inputmode="numeric" />
+                        <button type="button" class="step-btn" data-step-target="torchOffsetNum" data-step="1" aria-label="Increase">
+                          <svg viewBox="0 0 12 12" width="10" height="10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 2.5L8 6l-3.5 3.5" /></svg>
+                        </button>
+                      </span>
                       <span class="unit-suffix">ms</span>
                     </span>
                   </div>
@@ -359,7 +383,15 @@
                   <div class="label-row">
                     <label for="screenCountdownNum" data-i18n="screenCountdownLabel">Screen Flash countdown (s)</label>
                     <span class="num-unit">
-                      <input type="number" id="screenCountdownNum" class="num-input mono" min="0" max="10" step="1" value="2" inputmode="numeric" />
+                      <span class="num-stepper">
+                        <button type="button" class="step-btn" data-step-target="screenCountdownNum" data-step="-1" aria-label="Decrease">
+                          <svg viewBox="0 0 12 12" width="10" height="10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7.5 2.5L4 6l3.5 3.5" /></svg>
+                        </button>
+                        <input type="number" id="screenCountdownNum" class="num-input mono" min="0" max="10" step="1" value="2" inputmode="numeric" />
+                        <button type="button" class="step-btn" data-step-target="screenCountdownNum" data-step="1" aria-label="Increase">
+                          <svg viewBox="0 0 12 12" width="10" height="10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 2.5L8 6l-3.5 3.5" /></svg>
+                        </button>
+                      </span>
                       <span class="unit-suffix">s</span>
                     </span>
                   </div>
@@ -518,6 +550,6 @@
       </div>
     </div>
 
-    <script type="module" src="js/app.js?v=7"></script>
+    <script type="module" src="js/app.js?v=8"></script>
   </body>
 </html>
